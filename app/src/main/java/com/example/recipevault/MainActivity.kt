@@ -34,7 +34,9 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.example.recipevault.ui.theme.RecipeVaultTheme
+import dagger.hilt.android.AndroidEntryPoint
 
+@AndroidEntryPoint
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -122,8 +124,13 @@ fun HomeView(modifier: Modifier, navController: NavHostController) {
 
 @Composable
 fun RecipeView(modifier: Modifier, navController: NavHostController) {
+    val title = "Recipe Title"
+    val description =
+        "Lorem Ipsum decourm est lorem ipsum decoum est loreum ipsum decorum est In Compose, use a serializable object or class to define a route. A route describes how to get to a destination, and contains all the information that the destination requires."
+
+
     Column(modifier = modifier) {
-        Text(text = "Recipe View")
+        Text(text = "R")
         Button(onClick = { navController.navigateUp() }) { Text(text = "Go Back") }
     }
 
@@ -133,7 +140,10 @@ fun RecipeView(modifier: Modifier, navController: NavHostController) {
 @Composable
 fun RecipeVaultApp() {
     val navController = rememberNavController()
-    NavHost(navController = navController, startDestination = "home") {
+    NavHost(
+        navController = navController,
+        startDestination = "home",
+    ) {
         composable("home") {
             HomeView(
                 modifier = Modifier
