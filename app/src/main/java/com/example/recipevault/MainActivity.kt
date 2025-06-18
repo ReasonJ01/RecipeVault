@@ -2,7 +2,6 @@ package com.example.recipevault
 
 import android.media.Image
 import android.os.Bundle
-import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -67,6 +66,7 @@ import dagger.hilt.android.AndroidEntryPoint
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.stateIn
+import org.apache.commons.text.similarity.LevenshteinDistance
 import java.util.Collections
 import java.util.UUID
 import javax.inject.Inject
@@ -295,30 +295,20 @@ fun StepElement(
     }
 }
 
-fun suggestionComplete(input: String, suggestion: String): String {
+fun applySuggestion(input: String, suggestion: String): String {
     val match =
-        "@(\\w*(\\(\\))?)".toRegex().findAll(input).lastOrNull()?.groupValues
+        "@(\\w*(\\(\\))?)".toRegex().findAll(input).lastOrNull()
 
     val formattedSuggestion = "@".plus(suggestion).plus("()")
-    val fullMatch = match?.get(0) ?: ""
+    val fullMatch = match?.groupValues?.get(0) ?: ""
+    val matchStart = match?.range?.start ?: -1
+    val matchEnd = match?.range?.last ?: -1
 
-
-    Log.d("Suggestion", "Match: $fullMatch Formatted suggestion $formattedSuggestion")
-
-    if (fullMatch.isEmpty()) {
+    if (fullMatch.isEmpty() || matchStart == -1 || matchEnd == -1) {
         return ""
     }
 
-    var maxMatchIndex = 0
-    for (i in fullMatch.indices) {
-        if (fullMatch[i].lowercase() == formattedSuggestion[i].lowercase()) {
-            maxMatchIndex++
-        }
-    }
-
-
-
-    return formattedSuggestion.substring(maxMatchIndex)
+    return input.removeRange(matchStart, matchEnd + 1).plus(formattedSuggestion)
 
 
 }
@@ -336,12 +326,20 @@ fun MethodTextField(
 
 
     LaunchedEffect(input) {
+        val levThresh = 2
         val match = "@(\\w*)".toRegex().findAll(input.text).lastOrNull()
         val matchText = match?.groupValues?.get(1) ?: ""
         val matchEnd = match?.range?.last ?: -1
         if (matchText.isNotEmpty() && matchEnd == input.text.lastIndex) {
-            suggestions.value =
-                allSuggestions.filter { it.startsWith(matchText, ignoreCase = true) }
+            val distance = LevenshteinDistance()
+            val ranked = allSuggestions.map {
+                it to distance.apply(
+                    matchText.lowercase(),
+                    it.lowercase()
+                )
+            }.sortedBy { it.second }.take(5).map { it.first }
+
+            suggestions.value = ranked
         } else suggestions.value = emptyList<String>()
 
 
@@ -352,7 +350,7 @@ fun MethodTextField(
             items(suggestions.value) { suggestion ->
                 SuggestionChip(
                     onClick = {
-                        val t = input.text + suggestionComplete(input.text, suggestion)
+                        val t = applySuggestion(input.text, suggestion)
                         val rangeEnd = (t.length - 1).coerceAtLeast(0)
                         input = input.copy(text = t, selection = TextRange(rangeEnd))
                         focusRequester.requestFocus()
