@@ -22,8 +22,8 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
-import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material3.Button
@@ -32,6 +32,7 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.SuggestionChip
@@ -49,7 +50,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.style.TextAlign
@@ -64,12 +64,15 @@ import androidx.navigation.compose.rememberNavController
 import com.example.recipevault.ui.theme.RecipeVaultTheme
 import dagger.hilt.android.AndroidEntryPoint
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.launch
 import org.apache.commons.text.similarity.JaroWinklerDistance
 import java.util.Collections
 import java.util.UUID
 import javax.inject.Inject
+import kotlin.random.Random
 
 
 @AndroidEntryPoint
@@ -175,6 +178,11 @@ fun HomeView(
                     onClick = { navController.navigate("recipe") }
                 )
             }
+            item {
+                Button(onClick = { navController.navigate("addRecipe") }) {
+                    Text(text = "Add Recipe")
+                }
+            }
         }
     }
 
@@ -187,9 +195,6 @@ fun RecipeView(
     modifier: Modifier,
     navController: NavHostController,
 ) {
-    val title = "Recipe Title"
-    val description =
-        "Lorem Ipsum decourm est lorem ipsum decoum est loreum ipsum decorum est In Compose, use a serializable object or class to define a route. A route describes how to get to a destination, and contains all the information that the destination requires."
 
 
     Column(modifier = modifier) {
@@ -250,9 +255,22 @@ fun AddRecipeView(
         }
         item {
             Box(modifier = Modifier.animateItem()) {
-                Button(onClick = { viewModel.addNewStep() }) { Text(text = "Add Step") }
+                OutlinedButton(onClick = { viewModel.addNewStep() }) { Text(text = "Add Step") }
             }
 
+        }
+        item {
+            Button(
+                onClick = {
+                    viewModel.saveRecipe()
+                    navController.navigateUp()
+                }, modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 16.dp, bottom = 16.dp)
+            ) {
+                Icon(imageVector = Icons.Filled.Check, contentDescription = "Save")
+                Text(text = "Save Recipe")
+            }
         }
     }
 
@@ -277,7 +295,7 @@ fun StepElement(
         MethodTextField(
             value = step.text,
             onValueChange = onValueChange,
-            parser = { AnnotatedString(it) })
+        )
         Row(horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
             IconButton(
                 onClick = swapFunction,
@@ -326,19 +344,13 @@ fun String.toTitleCase(): String {
 fun MethodTextField(
     value: String,
     onValueChange: (String) -> Unit,
-    parser: (String) -> AnnotatedString
+    viewModel: AddRecipeViewModel = hiltViewModel()
+
 ) {
     var input by remember { mutableStateOf(TextFieldValue("")) }
-    val allSuggestions = listOf(
-        "Carrot",
-        "Potato",
-        "Onion",
-        "Garlic",
-        "Ginger",
-        "white_chocolate",
-        "red_pepper",
-        "smoked_paprika"
-    )
+    val allSuggestions = viewModel.getAllIngredients().collectAsState(
+        initial = emptyList<Ingredient>(),
+    ).value
 
     val suggestions = remember { mutableStateOf<List<String>>(emptyList<String>()) }
     val focusRequester = remember { FocusRequester() }
@@ -354,9 +366,9 @@ fun MethodTextField(
             val ranked = allSuggestions.map {
                 it to distance.apply(
                     matchText.lowercase(),
-                    it.lowercase()
+                    it.name?.lowercase() ?: ""
                 )
-            }.sortedBy { it.second }.take(5).map { it.first }
+            }.sortedBy { it.second }.take(5).map { it.first.name ?: "" }
 
             suggestions.value = ranked
         } else suggestions.value = emptyList<String>()
@@ -379,20 +391,30 @@ fun MethodTextField(
             }
         }
 
-        BasicTextField(
+        OutlinedTextField(
             value = input,
             onValueChange = {
                 onValueChange(it.text)
                 input = it
             },
-
             modifier = Modifier
                 .fillMaxWidth()
                 .focusRequester(focusRequester),
-            textStyle = MaterialTheme.typography.bodyLarge
+            textStyle = MaterialTheme.typography.bodyLarge,
+            placeholder = ({
+                Text(
+                    text = "Instructions....",
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f)
+                )
+            }),
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedBorderColor = MaterialTheme.colorScheme.background,
+                unfocusedBorderColor = MaterialTheme.colorScheme.background,
+                unfocusedTextColor = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.8f)
+            )
 
         )
-
     }
 }
 
@@ -444,12 +466,73 @@ data class StepEl(
 
 
 @HiltViewModel
-class AddRecipeViewModel @Inject constructor() : ViewModel() {
+class RecipeViewModel @Inject constructor(
+    private val dao: RecipeDao
+) : ViewModel()
+
+
+@HiltViewModel
+class AddRecipeViewModel @Inject constructor(
+    private val recipeDao: RecipeDao,
+    private val ingredientDao: IngredientDao,
+    private val stepDao: StepDao
+) : ViewModel() {
     var title by mutableStateOf("")
         private set
     private val _steps = mutableStateListOf<StepEl>()
     val steps: List<StepEl> get() = _steps
 
+
+    fun getAllIngredients(): Flow<List<Ingredient>> {
+        return ingredientDao.getAllIngredients()
+
+
+    }
+
+
+    fun saveRecipe() {
+
+        viewModelScope.launch {
+            val recipe = Recipe(
+                recipeId = Random.nextInt(),
+                title = title,
+                description = "Test description",
+                imageUrl = null
+            )
+            recipeDao.insertAll(recipe)
+
+            val stepsEntities = _steps.mapIndexed { index, step ->
+                Step(
+                    stepId = Random.nextInt(),
+                    stepNumber = index,
+                    recipeId = recipe.recipeId,
+                    description = step.text
+                )
+            }
+
+            stepDao.insertAll(*stepsEntities.toTypedArray())
+
+            stepsEntities.forEachIndexed { index, step ->
+                val matches = "@(\\w+)".toRegex().findAll(_steps[index].text)
+                for (match in matches) {
+                    val ingredientName = match.groupValues[1]
+                    val existingIngredient = ingredientDao.getIngredientByName(ingredientName)
+                    val ingredient = existingIngredient ?: Ingredient(
+                        ingredientId = Random.nextInt(),
+                        name = ingredientName,
+                        imageUrl = null
+                    )
+                    ingredientDao.insertAll(ingredient)
+                    stepDao.insertCrossRef(
+                        IngredientStepCrossRef(
+                            ingredientId = ingredient.ingredientId,
+                            stepId = step.stepId
+                        )
+                    )
+                }
+            }
+        }
+    }
 
     fun addNewStep() {
         _steps.add(StepEl())

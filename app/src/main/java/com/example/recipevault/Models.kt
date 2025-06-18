@@ -27,7 +27,7 @@ import javax.inject.Singleton
 
 @Database(
     entities = [Recipe::class, Step::class, Ingredient::class, IngredientStepCrossRef::class],
-    version = 2
+    version = 3
 )
 abstract class AppDatabase : RoomDatabase() {
     abstract fun recipeDao(): RecipeDao
@@ -71,20 +71,20 @@ interface RecipeDao {
     fun getAllRecipes(): Flow<List<Recipe>>
 
     @Query("SELECT * FROM Recipe WHERE recipeId = :recipeId")
-    fun getRecipeById(recipeId: Int): Recipe?
+    suspend fun getRecipeById(recipeId: Int): Recipe?
 
     @Transaction
     @Query("SELECT * FROM Recipe WHERE recipeId = :recipeId")
-    fun getRecipeWithStepsById(recipeId: Int): RecipeWithSteps?
+    suspend fun getRecipeWithStepsById(recipeId: Int): RecipeWithSteps?
 
     @Insert
-    fun insertAll(vararg recipes: Recipe)
+    suspend fun insertAll(vararg recipes: Recipe)
 
     @Delete
-    fun delete(recipe: Recipe)
+    suspend fun delete(recipe: Recipe)
 
     @Update
-    fun updateAll(vararg recipes: Recipe)
+    suspend fun updateAll(vararg recipes: Recipe)
 }
 
 
@@ -100,23 +100,26 @@ data class Step(
 @Dao
 interface StepDao {
     @Query("SELECT * FROM Step WHERE recipe_id = :recipeId ORDER BY step_number ASC")
-    fun getStepsByRecipeId(recipeId: Int): List<Step>
+    suspend fun getStepsByRecipeId(recipeId: Int): List<Step>
 
     @Query("SELECT * FROM Step WHERE stepId = :stepId")
-    fun getStepById(stepId: Int): Step?
+    suspend fun getStepById(stepId: Int): Step?
 
     @Transaction
     @Query("SELECT * FROM Step WHERE stepId = :stepId")
-    fun getStepWithIngredientsById(stepId: Int): StepWithIngredients?
+    suspend fun getStepWithIngredientsById(stepId: Int): StepWithIngredients?
 
     @Insert
-    fun insertAll(vararg steps: Step)
+    suspend fun insertAll(vararg steps: Step)
+
+    @Insert
+    suspend fun insertCrossRef(ref: IngredientStepCrossRef)
 
     @Delete
-    fun delete(step: Step)
+    suspend fun delete(step: Step)
 
     @Update
-    fun updateAll(vararg steps: Step)
+    suspend fun updateAll(vararg steps: Step)
 }
 
 data class RecipeWithSteps(
@@ -133,25 +136,28 @@ data class RecipeWithSteps(
 data class Ingredient(
     @PrimaryKey val ingredientId: Int,
     @ColumnInfo(name = "name") val name: String?,
-    @ColumnInfo(name = "quantity") val quantity: String?,
+    @ColumnInfo(name = "image_url") val imageUrl: String?,
 )
 
 @Dao
 interface IngredientDao {
     @Query("SELECT * FROM Ingredient")
-    fun getAllIngredients(): List<Ingredient>
+    fun getAllIngredients(): Flow<List<Ingredient>>
 
     @Query("SELECT * FROM Ingredient WHERE ingredientId = :ingredientId")
-    fun getIngredientById(ingredientId: Int): Ingredient?
+    suspend fun getIngredientById(ingredientId: Int): Ingredient?
+
+    @Query("SELECT * FROM INGREDIENT WHERE name = :name")
+    suspend fun getIngredientByName(name: String): Ingredient?
 
     @Insert
-    fun insertAll(vararg ingredients: Ingredient)
+    suspend fun insertAll(vararg ingredients: Ingredient)
 
     @Delete
-    fun delete(ingredient: Ingredient)
+    suspend fun delete(ingredient: Ingredient)
 
     @Update
-    fun updateAll(vararg ingredients: Ingredient)
+    suspend fun updateAll(vararg ingredients: Ingredient)
 
 }
 
