@@ -66,7 +66,7 @@ import dagger.hilt.android.AndroidEntryPoint
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.stateIn
-import org.apache.commons.text.similarity.LevenshteinDistance
+import org.apache.commons.text.similarity.JaroWinklerDistance
 import java.util.Collections
 import java.util.UUID
 import javax.inject.Inject
@@ -313,6 +313,15 @@ fun applySuggestion(input: String, suggestion: String): String {
 
 }
 
+fun String.toTitleCase(): String {
+    if (isEmpty()) return this
+    if (this.contains("_")) {
+        return this.replace("_", " ").toTitleCase()
+    }
+    return this.lowercase().split(" ").joinToString(" ") { it.replaceFirstChar(Char::titlecase) }
+}
+
+
 @Composable
 fun MethodTextField(
     value: String,
@@ -320,8 +329,18 @@ fun MethodTextField(
     parser: (String) -> AnnotatedString
 ) {
     var input by remember { mutableStateOf(TextFieldValue("")) }
-    val allSuggestions = listOf("Carrot", "Potato", "Onion", "Garlic", "Ginger")
-    var suggestions = remember { mutableStateOf<List<String>>(emptyList<String>()) }
+    val allSuggestions = listOf(
+        "Carrot",
+        "Potato",
+        "Onion",
+        "Garlic",
+        "Ginger",
+        "white_chocolate",
+        "red_pepper",
+        "smoked_paprika"
+    )
+
+    val suggestions = remember { mutableStateOf<List<String>>(emptyList<String>()) }
     val focusRequester = remember { FocusRequester() }
 
 
@@ -331,7 +350,7 @@ fun MethodTextField(
         val matchText = match?.groupValues?.get(1) ?: ""
         val matchEnd = match?.range?.last ?: -1
         if (matchText.isNotEmpty() && matchEnd == input.text.lastIndex) {
-            val distance = LevenshteinDistance()
+            val distance = JaroWinklerDistance()
             val ranked = allSuggestions.map {
                 it to distance.apply(
                     matchText.lowercase(),
@@ -355,7 +374,7 @@ fun MethodTextField(
                         input = input.copy(text = t, selection = TextRange(rangeEnd))
                         focusRequester.requestFocus()
                     },
-                    label = { Text(text = suggestion) }
+                    label = { Text(text = suggestion.toTitleCase()) }
                 )
             }
         }
