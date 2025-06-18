@@ -2,6 +2,7 @@ package com.example.recipevault
 
 import android.media.Image
 import android.os.Bundle
+import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -19,8 +20,10 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.KeyboardArrowUp
@@ -32,16 +35,24 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.SuggestionChip
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.TextRange
+import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -263,12 +274,10 @@ fun StepElement(
             style = MaterialTheme.typography.displaySmall,
             modifier = Modifier.padding(8.dp)
         )
-        OutlinedTextField(
+        MethodTextField(
             value = step.text,
             onValueChange = onValueChange,
-            modifier = Modifier.fillMaxWidth()
-
-        )
+            parser = { AnnotatedString(it) })
         Row(horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
             IconButton(
                 onClick = swapFunction,
@@ -283,6 +292,90 @@ fun StepElement(
                 )
             }
         }
+    }
+}
+
+fun suggestionComplete(input: String, suggestion: String): String {
+    val match =
+        "@(\\w*(\\(\\))?)".toRegex().findAll(input).lastOrNull()?.groupValues
+
+    val formattedSuggestion = "@".plus(suggestion).plus("()")
+    val fullMatch = match?.get(0) ?: ""
+
+
+    Log.d("Suggestion", "Match: $fullMatch Formatted suggestion $formattedSuggestion")
+
+    if (fullMatch.isEmpty()) {
+        return ""
+    }
+
+    var maxMatchIndex = 0
+    for (i in fullMatch.indices) {
+        if (fullMatch[i].lowercase() == formattedSuggestion[i].lowercase()) {
+            maxMatchIndex++
+        }
+    }
+
+
+
+    return formattedSuggestion.substring(maxMatchIndex)
+
+
+}
+
+@Composable
+fun MethodTextField(
+    value: String,
+    onValueChange: (String) -> Unit,
+    parser: (String) -> AnnotatedString
+) {
+    var input by remember { mutableStateOf(TextFieldValue("")) }
+    val allSuggestions = listOf("Carrot", "Potato", "Onion", "Garlic", "Ginger")
+    var suggestions = remember { mutableStateOf<List<String>>(emptyList<String>()) }
+    val focusRequester = remember { FocusRequester() }
+
+
+    LaunchedEffect(input) {
+        val match = "@(\\w*)".toRegex().findAll(input.text).lastOrNull()
+        val matchText = match?.groupValues?.get(1) ?: ""
+        val matchEnd = match?.range?.last ?: -1
+        if (matchText.isNotEmpty() && matchEnd == input.text.lastIndex) {
+            suggestions.value =
+                allSuggestions.filter { it.startsWith(matchText, ignoreCase = true) }
+        } else suggestions.value = emptyList<String>()
+
+
+    }
+
+    Column {
+        LazyRow(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+            items(suggestions.value) { suggestion ->
+                SuggestionChip(
+                    onClick = {
+                        val t = input.text + suggestionComplete(input.text, suggestion)
+                        val rangeEnd = (t.length - 1).coerceAtLeast(0)
+                        input = input.copy(text = t, selection = TextRange(rangeEnd))
+                        focusRequester.requestFocus()
+                    },
+                    label = { Text(text = suggestion) }
+                )
+            }
+        }
+
+        BasicTextField(
+            value = input,
+            onValueChange = {
+                onValueChange(it.text)
+                input = it
+            },
+
+            modifier = Modifier
+                .fillMaxWidth()
+                .focusRequester(focusRequester),
+            textStyle = MaterialTheme.typography.bodyLarge
+
+        )
+
     }
 }
 
