@@ -22,11 +22,12 @@ import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
-import jakarta.inject.Singleton
+import kotlinx.coroutines.flow.Flow
+import javax.inject.Singleton
 
 @Database(
     entities = [Recipe::class, Step::class, Ingredient::class, IngredientStepCrossRef::class],
-    version = 1
+    version = 2
 )
 abstract class AppDatabase : RoomDatabase() {
     abstract fun recipeDao(): RecipeDao
@@ -40,7 +41,10 @@ object DatabaseModule {
     @Provides
     @Singleton
     fun provideDatabase(@ApplicationContext context: Context): AppDatabase =
-        Room.databaseBuilder(context, AppDatabase::class.java, "app_db").build()
+        Room.databaseBuilder(context, AppDatabase::class.java, "app_db")
+            .fallbackToDestructiveMigration(false)
+            //TODO add migration
+            .build()
 
     @Provides
     fun provideRecipeDao(database: AppDatabase): RecipeDao = database.recipeDao()
@@ -64,7 +68,7 @@ data class Recipe(
 @Dao
 interface RecipeDao {
     @Query("SELECT * FROM Recipe")
-    fun getAllRecipes(): List<Recipe>
+    fun getAllRecipes(): Flow<List<Recipe>>
 
     @Query("SELECT * FROM Recipe WHERE recipeId = :recipeId")
     fun getRecipeById(recipeId: Int): Recipe?
@@ -152,7 +156,10 @@ interface IngredientDao {
 }
 
 
-@Entity(primaryKeys = ["ingredientId", "stepId"])
+@Entity(
+    primaryKeys = ["ingredientId", "stepId"],
+    indices = [Index(value = ["ingredientId"]), Index(value = ["stepId"])]
+)
 data class IngredientStepCrossRef(
     val ingredientId: Int,
     val stepId: Int
