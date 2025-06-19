@@ -11,6 +11,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
@@ -48,6 +49,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
@@ -304,10 +306,7 @@ fun parseStepString(input: String): List<StepSegment> {
 fun formatIngredient(name: String, quantity: String, rawUnit: String): String {
     val canonical = unitAliases[rawUnit.trim().lowercase()] ?: rawUnit
     val short = shorthandUnits[canonical]
-    Log.d(
-        "FORMATTING",
-        "canonical: $canonical, short: $short, raw: $rawUnit, name: $name, quantity: $quantity"
-    )
+
     if (canonical.isBlank()) {
         return "$quantity $name"
     }
@@ -349,6 +348,11 @@ fun RecipeView(
     viewModel: RecipeViewModel = hiltViewModel()
 ) {
     val recipe = viewModel.recipe?.collectAsState()?.value
+    viewModel.fetchSteps()
+    val ingredients = viewModel.stepsWithIngredients.map { it.ingredients }
+    val steps = viewModel.stepsWithIngredients
+    val flatIngredients = ingredients.flatten()
+
     if (recipe == null) {
         Text(text = "Loading...")
     } else {
@@ -374,6 +378,36 @@ fun RecipeView(
             }
             item {
                 Text(text = "Ingredients", style = MaterialTheme.typography.displaySmall)
+            }
+            item {
+                FlowRow(
+                    horizontalArrangement = Arrangement.SpaceEvenly,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    steps.forEach { step ->
+                        val ingredientTags = parseStepString(
+                            step.step.description ?: ""
+                        ).filterIsInstance<IngredientSegment>()
+                        for (tag in ingredientTags) {
+                            val url = flatIngredients.find { it.name == tag.name }?.imageUrl
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                Card {
+                                    ImagePlaceholder(
+                                        text = tag.name.toTitleCase().take(2),
+                                        modifier = Modifier
+                                            .fillMaxWidth(0.25f)
+                                            .clipToBounds()
+                                    )
+                                }
+
+                                Text(text = tag.name.toTitleCase())
+                                Text(text = "${tag.quantity} ${tag.unit}".trim())
+                            }
+
+                        }
+                    }
+
+                }
             }
             item {
                 Text(text = "Method", style = MaterialTheme.typography.displaySmall)
@@ -642,7 +676,7 @@ fun RecipeVaultApp() {
 
 @HiltViewModel
 class HomeViewModel @Inject constructor(
-    private val dao: RecipeDao
+    private val dao: RecipeDao,
 ) : ViewModel() {
     val recipes = dao.getAllRecipes().stateIn(
         scope = viewModelScope,
@@ -660,7 +694,8 @@ data class StepEl(
 @HiltViewModel
 class RecipeViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
-    private val dao: RecipeDao
+    private val dao: RecipeDao,
+    private val stepDao: StepDao
 ) : ViewModel() {
     val recipeId = savedStateHandle.get<Int>("recipeId")
 
@@ -671,6 +706,19 @@ class RecipeViewModel @Inject constructor(
             SharingStarted.WhileSubscribed(5000),
             null
         )
+    }
+
+    private val _stepsWithIngredients = mutableStateOf<List<StepWithIngredients>>(emptyList())
+    val stepsWithIngredients: List<StepWithIngredients> get() = _stepsWithIngredients.value
+
+    fun fetchSteps() {
+        viewModelScope.launch {
+            val steps = recipeId?.let { stepDao.getStepWithIngredientsByRecipeId(it) }
+            Log.d("RecipeViewModel", "steps: $steps")
+            if (steps != null) {
+                _stepsWithIngredients.value = steps.filterNotNull()
+            }
+        }
     }
 
 
@@ -693,6 +741,7 @@ class AddRecipeViewModel @Inject constructor(
         started = SharingStarted.WhileSubscribed(5000),
         initialValue = emptyList()
     )
+    private val insertedRefs = mutableSetOf<Pair<Int, Int>>()
 
     fun saveRecipe() {
         viewModelScope.launch {
@@ -727,12 +776,15 @@ class AddRecipeViewModel @Inject constructor(
                     )
                     if (existingIngredient == null) ingredientDao.insertAll(ingredient)
 
-                    stepDao.insertCrossRef(
-                        IngredientStepCrossRef(
-                            ingredientId = ingredient.ingredientId,
-                            stepId = step.stepId
+                    if (Pair(ingredient.ingredientId, step.stepId) !in insertedRefs) {
+                        stepDao.insertCrossRef(
+                            IngredientStepCrossRef(
+                                ingredientId = ingredient.ingredientId,
+                                stepId = step.stepId
+                            )
                         )
-                    )
+                        insertedRefs.add(Pair(ingredient.ingredientId, step.stepId))
+                    }
                 }
             }
         }
