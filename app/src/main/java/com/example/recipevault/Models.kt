@@ -27,7 +27,7 @@ import javax.inject.Singleton
 
 @Database(
     entities = [Recipe::class, Step::class, Ingredient::class, IngredientStepCrossRef::class],
-    version = 3
+    version = 4
 )
 abstract class AppDatabase : RoomDatabase() {
     abstract fun recipeDao(): RecipeDao
@@ -75,7 +75,7 @@ interface RecipeDao {
 
     @Transaction
     @Query("SELECT * FROM Recipe WHERE recipeId = :recipeId")
-    suspend fun getRecipeWithStepsById(recipeId: Int): RecipeWithSteps?
+    fun getRecipeWithStepsById(recipeId: Int): Flow<RecipeWithSteps?>
 
     @Insert
     suspend fun insertAll(vararg recipes: Recipe)

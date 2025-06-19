@@ -2,6 +2,7 @@ package com.example.recipevault
 
 import android.media.Image
 import android.os.Bundle
+import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -55,16 +56,19 @@ import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.navigation.NavHostController
+import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import androidx.navigation.navArgument
 import com.example.recipevault.ui.theme.RecipeVaultTheme
+import com.example.recipevault.ui.theme.headlineLargeGaramond
 import dagger.hilt.android.AndroidEntryPoint
 import dagger.hilt.android.lifecycle.HiltViewModel
-import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -175,7 +179,7 @@ fun HomeView(
                     title = recipe.title ?: "No title",
                     description = recipe.description ?: "No description",
                     image = null,
-                    onClick = { navController.navigate("recipe") }
+                    onClick = { navController.navigate("recipe/${recipe.recipeId}") }
                 )
             }
             item {
@@ -190,17 +194,200 @@ fun HomeView(
 }
 
 
+val unitAliases = mapOf(
+    "g" to "grams", "gram" to "grams", "grams" to "grams",
+    "kg" to "kilograms", "kilogram" to "kilograms",
+
+    "ml" to "millilitres", "millilitre" to "millilitres", "millilitres" to "millilitres",
+    "l" to "litres", "litre" to "litres",
+
+    "tsp" to "teaspoons", "teaspoon" to "teaspoons",
+    "tbsp" to "tablespoons", "tablespoon" to "tablespoons",
+
+    "oz" to "ounces", "ounce" to "ounces",
+
+    "cup" to "cups", "cups" to "cups",
+    "" to ""
+)
+
+val singlularUnits = mapOf(
+    "grams" to "gram",
+    "kilograms" to "kilogram",
+    "millilitres" to "millilitre",
+    "litres" to "litre",
+    "teaspoons" to "teaspoon",
+    "tablespoons" to "tablespoon",
+    "ounces" to "ounce",
+    "cups" to "cup"
+)
+
+
+val shorthandUnits = mapOf(
+    "grams" to "g",
+    "kilograms" to "kg",
+    "millilitres" to "ml",
+    "litres" to "l",
+    "teaspoons" to "tsp",
+    "tablespoons" to "tbsp",
+    "ounces" to "oz"
+)
+
+sealed class StepSegment
+data class TextSegment(val text: String) : StepSegment()
+data class IngredientSegment(val name: String, val quantity: String, val unit: String) :
+    StepSegment()
+
+fun parseStepString(input: String): List<StepSegment> {
+    val result = mutableListOf<StepSegment>()
+    var i = 0
+    val sb = StringBuilder()
+
+    while (i < input.length) {
+        // If we see the start of a new ingredient
+        if (input[i] == '@') {
+            // If we have a previous ingredient that was not completed,
+            // it is malformed and save it as text
+            if (sb.isNotEmpty()) {
+                result.add(TextSegment(sb.toString()))
+                sb.clear()
+            }
+
+            // Move past @
+            i++
+            val nameStart = i
+            while (i < input.length && input[i] != '(') i++
+            if (i >= input.length) {
+                sb.append(input.substring(nameStart))
+                break
+            }
+
+            val nameEnd = i
+            val name = input.substring(nameStart, nameEnd)
+
+
+            var quantity: String? = null
+            var unit: String? = null
+
+            i++
+            val paramsStart = i
+            while (i < input.length && input[i] != ')') i++
+            if (i >= input.length) {
+                sb.append(input.substring(nameStart))
+                break
+            }
+
+            val paramsEnd = i++
+            val params = input.substring(paramsStart, paramsEnd).split(",")
+
+            quantity = params.getOrNull(0)?.trim()
+            unit = params.getOrNull(1)?.trim()
+
+            if (name.isBlank()) {
+                sb.append(input.substring(paramsEnd))
+                break
+            }
+
+            result.add(IngredientSegment(name, quantity ?: "", unit ?: ""))
+        } else {
+            sb.append(input[i])
+            i++
+        }
+    }
+
+    if (sb.isNotEmpty()) {
+        result.add(TextSegment(sb.toString()))
+    }
+
+    return result
+}
+
+fun formatIngredient(name: String, quantity: String, rawUnit: String): String {
+    val canonical = unitAliases[rawUnit.trim().lowercase()] ?: rawUnit
+    val short = shorthandUnits[canonical]
+    Log.d(
+        "FORMATTING",
+        "canonical: $canonical, short: $short, raw: $rawUnit, name: $name, quantity: $quantity"
+    )
+    if (canonical.isBlank()) {
+        return "$quantity $name"
+    }
+
+    if (short != null) {
+        return "$quantity$short $name"
+    }
+
+    if (quantity.startsWith("1") || quantity.startsWith("0")) {
+        val singular = singlularUnits[canonical]
+        return "$quantity $singular of $name"
+
+    }
+
+    return "$quantity $canonical of $name"
+}
+
+
+fun formatStepForDisplay(step: Step): String {
+    val parsedStep = parseStepString(step.description ?: "")
+
+    return parsedStep.joinToString("") {
+        when (it) {
+            is TextSegment -> it.text
+            is IngredientSegment -> formatIngredient(it.name.toTitleCase(), it.quantity, it.unit)
+
+        }
+    }
+
+
+}
+
+
 @Composable
 fun RecipeView(
     modifier: Modifier,
     navController: NavHostController,
+    recipeId: Int?,
+    viewModel: RecipeViewModel = hiltViewModel()
 ) {
+    val recipe = viewModel.recipe?.collectAsState()?.value
+    if (recipe == null) {
+        Text(text = "Loading...")
+    } else {
+        LazyColumn(
+            modifier = modifier.fillMaxSize(),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
 
+            item {
+                ImagePlaceholder(text = recipe.recipe.title ?: "No title")
+            }
+            item {
+                Text(
+                    text = recipe.recipe.title ?: "No title",
+                    style = MaterialTheme.typography.displayMedium
+                )
+            }
+            item {
+                Text(
+                    text = recipe.recipe.description ?: "No description",
+                    style = MaterialTheme.typography.bodyMedium
+                )
+            }
+            item {
+                Text(text = "Ingredients", style = MaterialTheme.typography.displaySmall)
+            }
+            item {
+                Text(text = "Method", style = MaterialTheme.typography.displaySmall)
+            }
 
-    Column(modifier = modifier) {
-        Card() { ImagePlaceholder(text = title) }
-        Text(text = "Recipe Title")
-        Button(onClick = { navController.navigateUp() }) { Text(text = "Go Back") }
+            itemsIndexed(recipe.steps) { index, step ->
+                Text(
+                    text = "Step ${index + 1}",
+                    style = MaterialTheme.typography.headlineLargeGaramond
+                )
+                Text(text = formatStepForDisplay(step))
+            }
+
+        }
     }
 
 
@@ -214,6 +401,9 @@ fun AddRecipeView(
     viewModel: AddRecipeViewModel = hiltViewModel()
 
 ) {
+    LaunchedEffect(Unit) {
+        viewModel.addNewStep()
+    }
     val steps = viewModel.steps
     LazyColumn(
         modifier = modifier
@@ -348,9 +538,7 @@ fun MethodTextField(
 
 ) {
     var input by remember { mutableStateOf(TextFieldValue("")) }
-    val allSuggestions = viewModel.getAllIngredients().collectAsState(
-        initial = emptyList<Ingredient>(),
-    ).value
+    val allSuggestions = viewModel.allIngredients.collectAsState().value
 
     val suggestions = remember { mutableStateOf<List<String>>(emptyList<String>()) }
     val focusRequester = remember { FocusRequester() }
@@ -436,10 +624,14 @@ fun RecipeVaultApp() {
                 navController = navController
             )
         }
-        composable("recipe") {
+        composable(
+            "recipe/{recipeId}",
+            arguments = listOf(navArgument("recipeId") { type = NavType.IntType })
+        ) { backStackEntry ->
             RecipeView(
                 modifier = mod,
-                navController = navController
+                navController = navController,
+                recipeId = backStackEntry.arguments?.getInt("recipeId")
             )
         }
         composable("addRecipe") {
@@ -467,8 +659,22 @@ data class StepEl(
 
 @HiltViewModel
 class RecipeViewModel @Inject constructor(
+    savedStateHandle: SavedStateHandle,
     private val dao: RecipeDao
-) : ViewModel()
+) : ViewModel() {
+    val recipeId = savedStateHandle.get<Int>("recipeId")
+
+
+    val recipe = recipeId?.let {
+        dao.getRecipeWithStepsById(it).stateIn(
+            viewModelScope,
+            SharingStarted.WhileSubscribed(5000),
+            null
+        )
+    }
+
+
+}
 
 
 @HiltViewModel
@@ -482,16 +688,13 @@ class AddRecipeViewModel @Inject constructor(
     private val _steps = mutableStateListOf<StepEl>()
     val steps: List<StepEl> get() = _steps
 
-
-    fun getAllIngredients(): Flow<List<Ingredient>> {
-        return ingredientDao.getAllIngredients()
-
-
-    }
-
+    val allIngredients = ingredientDao.getAllIngredients().stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5000),
+        initialValue = emptyList()
+    )
 
     fun saveRecipe() {
-
         viewModelScope.launch {
             val recipe = Recipe(
                 recipeId = Random.nextInt(),
@@ -522,7 +725,8 @@ class AddRecipeViewModel @Inject constructor(
                         name = ingredientName,
                         imageUrl = null
                     )
-                    ingredientDao.insertAll(ingredient)
+                    if (existingIngredient == null) ingredientDao.insertAll(ingredient)
+
                     stepDao.insertCrossRef(
                         IngredientStepCrossRef(
                             ingredientId = ingredient.ingredientId,
