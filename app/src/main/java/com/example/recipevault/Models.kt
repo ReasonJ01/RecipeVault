@@ -122,6 +122,9 @@ interface StepDao {
     @Query("SELECT * FROM Step WHERE recipe_id = :recipeId ORDER BY step_number ASC")
     suspend fun getStepWithIngredientsByRecipeId(recipeId: Int): List<StepWithIngredients>
 
+    @Query("SELECT * FROM IngredientStepCrossRef")
+    suspend fun getAllCrossRefs(): List<IngredientStepCrossRef>
+
     @Insert
     suspend fun insertAll(vararg steps: Step)
 

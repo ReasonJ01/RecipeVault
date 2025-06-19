@@ -29,9 +29,12 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.KeyboardArrowUp
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -40,6 +43,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.SuggestionChip
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -77,11 +81,11 @@ import com.example.recipevault.ui.theme.headlineLargeGaramond
 import dagger.hilt.android.AndroidEntryPoint
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import org.apache.commons.text.similarity.JaroWinklerDistance
 import java.util.Collections
-import java.util.UUID
 import javax.inject.Inject
 import kotlin.random.Random
 
@@ -214,7 +218,6 @@ fun HomeView(
                         currentApiKey = savedKey // Update the displayed key
                         // You might want to trigger other actions here, like re-fetching data
                         showApiKeyDialog = false
-                        Log.d("SettingsScreen", "API Key dialog confirmed and dismissed.")
                     }
                 )
             }
@@ -380,6 +383,37 @@ fun formatStepForDisplay(step: Step): String {
 
 
 @Composable
+fun ConfirmDialog(
+    title: String = "Confirm",
+    message: String,
+    confirmText: String = "Yes",
+    confirmColor: Color = MaterialTheme.colorScheme.error,
+    dismissText: String = "No",
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(title) },
+        text = { Text(message) },
+        confirmButton = {
+            TextButton(
+                onClick = onConfirm,
+                colors = ButtonDefaults.textButtonColors(contentColor = confirmColor)
+            ) {
+                Text(confirmText)
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text(dismissText)
+            }
+        }
+    )
+}
+
+
+@Composable
 fun RecipeView(
     modifier: Modifier,
     navController: NavHostController,
@@ -391,6 +425,22 @@ fun RecipeView(
     val ingredients = viewModel.stepsWithIngredients.map { it.ingredients }
     val steps = viewModel.stepsWithIngredients
     val flatIngredients = ingredients.flatten()
+    var showDialog by remember { mutableStateOf(false) }
+
+    if (showDialog) {
+        ConfirmDialog(
+            title = "Delete Recipe?",
+            message = "Are you sure you want to delete this recipe?",
+            confirmText = "Delete",
+
+            dismissText = "Cancel",
+            onDismiss = { showDialog = false },
+            onConfirm = {
+                viewModel.deleteRecipe()
+                navController.navigateUp()
+            }
+        )
+    }
 
     if (recipe == null) {
         Text(text = "Loading...")
@@ -398,7 +448,8 @@ fun RecipeView(
         LazyColumn(
             modifier = modifier.fillMaxSize(),
             verticalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
+        )
+        {
 
             item {
                 ImagePlaceholder(text = recipe.recipe.title ?: "No title")
@@ -468,12 +519,111 @@ fun RecipeView(
                 Text(text = formatStepForDisplay(step))
             }
 
+            item {
+                Column(
+                ) {
+                    HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+                    Button(
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.error,
+                            contentColor = MaterialTheme.colorScheme.onError
+                        ),
+                        onClick = { showDialog = true },
+                        modifier = modifier
+                            .padding(bottom = 8.dp)
+                    ) {
+                        Text(text = "Delete Recipe")
+                    }
+                    Button(
+                        onClick = { navController.navigate("editRecipe/${recipe.recipe.recipeId}") },
+                        modifier = modifier
+                            .padding(bottom = 8.dp)
+                    ) {
+                        Text(text = "Delete Recipe")
+                    }
+                }
+
+            }
+
         }
     }
 
 
 }
 
+@Composable
+fun EditRecipeView(
+    modifier: Modifier,
+    navController: NavHostController,
+    viewModel: EditRecipeViewModel = hiltViewModel()
+) {
+    val context = LocalContext.current
+    val steps = viewModel.steps
+    LazyColumn(
+        modifier = modifier
+            .fillMaxSize(),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        item {
+            OutlinedTextField(
+                isError = !viewModel.titleError.isNullOrEmpty(),
+                value = viewModel.title,
+                onValueChange = viewModel::onTitleChange,
+                textStyle = MaterialTheme.typography.displayMedium,
+                placeholder = ({
+                    Text(
+                        text = "Recipe Title",
+                        style = MaterialTheme.typography.displayMedium,
+                        color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f)
+                    )
+                }),
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = MaterialTheme.colorScheme.background,
+                    unfocusedBorderColor = MaterialTheme.colorScheme.background,
+                    unfocusedTextColor = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.8f)
+                )
+
+            )
+            Text("Method", style = MaterialTheme.typography.displaySmall)
+        }
+        if (steps.isNotEmpty()) {
+            itemsIndexed(steps, key = { _, step -> step.stepId }) { index, step ->
+                StepElement(
+                    onValueChange = { newText -> viewModel.updateStep(index, newText) },
+                    swapFunction = { viewModel.swapSteps(index) },
+                    onDelete = { viewModel.removeStep(step) },
+                    isError = !viewModel.stepErrors[index].isNullOrEmpty(),
+                    step = step,
+                    index = index,
+                    modifier = Modifier
+                        .animateItem()
+                        .fillMaxWidth()
+                )
+            }
+        }
+        item {
+            Box(modifier = Modifier.animateItem()) {
+                OutlinedButton(onClick = { viewModel.addNewStep() }) { Text(text = "Add Step") }
+            }
+
+        }
+        item {
+            Button(
+                onClick = {
+                    viewModel.saveRecipe(
+                        context = context,
+                        onSuccess = { navController.navigateUp() })
+                }, modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 16.dp, bottom = 16.dp)
+            ) {
+                Icon(imageVector = Icons.Filled.Check, contentDescription = "Save")
+                Text(text = "Save Recipe")
+            }
+        }
+    }
+
+}
 
 @Composable
 fun AddRecipeView(
@@ -514,7 +664,7 @@ fun AddRecipeView(
             )
             Text("Method", style = MaterialTheme.typography.displaySmall)
         }
-        itemsIndexed(steps, key = { _, step -> step.id }) { index, step ->
+        itemsIndexed(steps, key = { _, step -> step.stepId }) { index, step ->
             StepElement(
                 onValueChange = { newText -> viewModel.updateStep(index, newText) },
                 swapFunction = { viewModel.swapSteps(index) },
@@ -557,7 +707,7 @@ fun StepElement(
     onValueChange: (String) -> Unit,
     swapFunction: () -> Unit,
     onDelete: () -> Unit,
-    step: StepEl,
+    step: Step,
     index: Int,
     modifier: Modifier,
     isError: Boolean = false
@@ -569,7 +719,7 @@ fun StepElement(
             modifier = Modifier.padding(8.dp)
         )
         MethodTextField(
-            value = step.text,
+            value = step.description ?: "",
             onValueChange = onValueChange,
             isError = isError
         )
@@ -626,7 +776,7 @@ fun MethodTextField(
     isError: Boolean = false,
 
     ) {
-    var input by remember { mutableStateOf(TextFieldValue("")) }
+    var input by remember { mutableStateOf(TextFieldValue(text = value)) }
     val allSuggestions = viewModel.allIngredients.collectAsState().value
 
     val suggestions = remember { mutableStateOf<List<String>>(emptyList<String>()) }
@@ -727,6 +877,14 @@ fun RecipeVaultApp() {
         composable("addRecipe") {
             AddRecipeView(modifier = mod, navController = navController)
         }
+        composable(
+            "editRecipe/{recipeId}", listOf(navArgument("recipeId") { type = NavType.IntType })
+        ) { backStackEntry ->
+            EditRecipeView(
+                modifier = mod,
+                navController = navController,
+            )
+        }
     }
 }
 
@@ -740,11 +898,6 @@ class HomeViewModel @Inject constructor(
         initialValue = emptyList()
     )
 }
-
-data class StepEl(
-    val id: String = UUID.randomUUID().toString(),
-    val text: String = ""
-)
 
 
 @HiltViewModel
@@ -770,14 +923,178 @@ class RecipeViewModel @Inject constructor(
     fun fetchSteps() {
         viewModelScope.launch {
             val steps = recipeId?.let { stepDao.getStepWithIngredientsByRecipeId(it) }
-            Log.d("RecipeViewModel", "steps: $steps")
             if (steps != null) {
                 _stepsWithIngredients.value = steps.filterNotNull()
             }
         }
     }
 
+    fun deleteRecipe() {
+        viewModelScope.launch {
+            recipe?.value?.let { dao.delete(it.recipe) }
+        }
+    }
 
+
+}
+
+@HiltViewModel
+class EditRecipeViewModel @Inject constructor(
+    savedStateHandle: SavedStateHandle,
+    private val recipeDao: RecipeDao,
+    private val ingredientDao: IngredientDao,
+    private val stepDao: StepDao
+) : ViewModel() {
+    val recipeId = savedStateHandle.get<Int>("recipeId")
+
+    var recipe by mutableStateOf<Recipe?>(null)
+        private set
+
+    var title by mutableStateOf("")
+        private set
+    var titleError by mutableStateOf<String?>(null)
+        private set
+
+    private val _steps = mutableStateListOf<Step>()
+    val steps: List<Step> get() = _steps
+
+    private val _stepErrors = mutableStateListOf<String?>()
+    val stepErrors: List<String?> get() = _stepErrors
+
+
+    init {
+        Log.d("EditRecipeViewModel", "recipeid $recipeId")
+
+        viewModelScope.launch {
+            val loaded = recipeDao.getRecipeWithStepsById(recipeId ?: -1).first()
+            if (loaded != null) {
+                recipe = loaded.recipe
+                title = loaded.recipe.title ?: ""
+                _steps.addAll(loaded.steps)
+                _stepErrors.addAll(List(loaded.steps.size) { null })
+            }
+        }
+    }
+
+
+    val allIngredients = ingredientDao.getAllIngredients().stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5000),
+        initialValue = emptyList()
+    )
+
+
+    fun saveRecipe(context: Context, onSuccess: () -> Unit) {
+        viewModelScope.launch {
+            var existingRefs =
+                stepDao.getAllCrossRefs().map { Pair(it.ingredientId, it.stepId) }.toSet()
+
+            var valid = true
+            if (title.isBlank()) {
+                titleError = "Title cannot be blank"
+                valid = false
+            } else {
+                titleError = null
+            }
+            Log.d("EditRecipeViewModel", "title $title")
+
+            _steps.forEachIndexed { index, step ->
+                if (step.description.isNullOrEmpty()) {
+                    _stepErrors[index] = "Step cannot be blank"
+                    valid = false
+                } else {
+                    _stepErrors[index] = null
+                }
+
+            }
+            if (_steps.isEmpty()) {
+                valid = false
+            }
+
+            if (!valid) return@launch
+
+
+
+            recipe?.let { recipeDao.updateAll(it.copy(title = title)) }
+            
+            stepDao.updateAll(*_steps.toTypedArray())
+
+            _steps.forEachIndexed { index, step ->
+                val matches = "@(\\w+)".toRegex().findAll(_steps[index].description ?: "")
+                for (match in matches) {
+                    val ingredientName = match.groupValues[1]
+                    val existingIngredient = ingredientDao.getIngredientByName(ingredientName)
+                    val ingredient = existingIngredient ?: Ingredient(
+                        ingredientId = Random.nextInt(),
+                        name = ingredientName,
+                        imageUrl = null
+                    )
+                    if (existingIngredient == null) {
+                        ingredientDao.insertAll(ingredient)
+                        val inputData = workDataOf(
+                            "ingredientId" to ingredient.ingredientId,
+                            "ingredientName" to ingredient.name
+                        )
+                        val workRequest = OneTimeWorkRequestBuilder<IngredientWorker>()
+                            .setInputData(inputData)
+                            .build()
+                        WorkManager.getInstance(context).enqueue(workRequest)
+
+
+                    }
+
+                    if (Pair(ingredient.ingredientId, step.stepId) !in existingRefs) {
+                        stepDao.insertCrossRef(
+                            IngredientStepCrossRef(
+                                ingredientId = ingredient.ingredientId,
+                                stepId = step.stepId
+                            )
+                        )
+                        existingRefs.plus(Pair(ingredient.ingredientId, step.stepId))
+                    }
+
+                }
+            }
+            onSuccess()
+        }
+
+    }
+
+    fun addNewStep() {
+        _steps.add(
+            Step(
+                stepId = Random.nextInt(),
+                stepNumber = _steps.size,
+                recipeId = recipeId ?: -1,
+                description = null
+            )
+        )
+        _stepErrors.add(null)
+
+    }
+
+    fun removeStep(step: Step) {
+        val index = _steps.indexOf(step)
+        if (index != -1) {
+            _steps.removeAt(index)
+            _stepErrors.removeAt(index)
+        }
+    }
+
+    fun updateStep(index: Int, newText: String) {
+        _steps[index] = _steps[index].copy(description = newText)
+        _stepErrors[index] = null
+
+    }
+
+    fun swapSteps(index: Int) {
+        if (index in 1 until _steps.lastIndex + 1)
+            Collections.swap(_steps, index, index - 1)
+    }
+
+    fun onTitleChange(newTitle: String) {
+        title = newTitle
+    }
 }
 
 
@@ -789,8 +1106,8 @@ class AddRecipeViewModel @Inject constructor(
 ) : ViewModel() {
     var title by mutableStateOf("")
         private set
-    private val _steps = mutableStateListOf<StepEl>()
-    val steps: List<StepEl> get() = _steps
+    private val _steps = mutableStateListOf<Step>()
+    val steps: List<Step> get() = _steps
 
     var titleError by mutableStateOf<String?>(null)
         private set
@@ -817,7 +1134,7 @@ class AddRecipeViewModel @Inject constructor(
             }
 
             _steps.forEachIndexed { index, step ->
-                if (step.text.isBlank()) {
+                if (step.description.isNullOrBlank()) {
                     _stepErrors[index] = "Step cannot be blank"
                     valid = false
                 } else {
@@ -840,19 +1157,15 @@ class AddRecipeViewModel @Inject constructor(
             )
             recipeDao.insertAll(recipe)
 
-            val stepsEntities = _steps.mapIndexed { index, step ->
-                Step(
-                    stepId = Random.nextInt(),
-                    stepNumber = index,
-                    recipeId = recipe.recipeId,
-                    description = step.text
-                )
+            val steps = _steps.map { step ->
+                step.copy(recipeId = recipe.recipeId)
             }
 
-            stepDao.insertAll(*stepsEntities.toTypedArray())
 
-            stepsEntities.forEachIndexed { index, step ->
-                val matches = "@(\\w+)".toRegex().findAll(_steps[index].text)
+            stepDao.insertAll(*steps.toTypedArray())
+
+            steps.forEachIndexed { index, step ->
+                val matches = "@(\\w+)".toRegex().findAll(_steps[index].description ?: "")
                 for (match in matches) {
                     val ingredientName = match.groupValues[1]
                     val existingIngredient = ingredientDao.getIngredientByName(ingredientName)
@@ -893,12 +1206,19 @@ class AddRecipeViewModel @Inject constructor(
     }
 
     fun addNewStep() {
-        _steps.add(StepEl())
+        _steps.add(
+            Step(
+                stepId = Random.nextInt(),
+                stepNumber = _steps.size,
+                recipeId = -1,
+                description = null
+            )
+        )
         _stepErrors.add(null)
 
     }
 
-    fun removeStep(step: StepEl) {
+    fun removeStep(step: Step) {
         val index = _steps.indexOf(step)
         if (index != -1) {
             _steps.removeAt(index)
@@ -907,7 +1227,7 @@ class AddRecipeViewModel @Inject constructor(
     }
 
     fun updateStep(index: Int, newText: String) {
-        _steps[index] = _steps[index].copy(text = newText)
+        _steps[index] = _steps[index].copy(description = newText)
         _stepErrors[index] = null
 
     }
