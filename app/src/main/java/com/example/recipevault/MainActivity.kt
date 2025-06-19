@@ -259,8 +259,8 @@ val shorthandUnits = mapOf(
     "kilograms" to "kg",
     "millilitres" to "ml",
     "litres" to "l",
-    "teaspoons" to "tsp",
-    "tablespoons" to "tbsp",
+    "teaspoons" to " tsp",
+    "tablespoons" to " tbsp",
     "ounces" to "oz"
 )
 
@@ -337,25 +337,30 @@ fun formatIngredient(name: String, quantity: String, rawUnit: String): String {
     val canonical = unitAliases[rawUnit.trim().lowercase()] ?: rawUnit
     val short = shorthandUnits[canonical]
 
-    if (canonical.isBlank()) {
-        return "$quantity $name"
+    // Add flour...
+    if (canonical.isBlank() && quantity.isBlank()) {
+        return name
     }
 
+    // add flour (30g)
     if (short != null) {
-        return "$quantity$short $name"
+        return "$name ($quantity$short)"
     }
 
     if (quantity.startsWith("1") || quantity.startsWith("0")) {
         val singular = singlularUnits[canonical]
+
+        // add flour (1 smidge/smidges)
         if (singular == null) {
-            return "$quantity $canonical of $name"
+            return "$name ($quantity $canonical)"
         }
-
-        return "$quantity $singular of $name"
-
+        // add flour (1 cup)
+        return "$name ($quantity $singular)"
     }
 
-    return "$quantity $canonical of $name"
+    // add flour (3 cups)
+    return "$name ($quantity $canonical)"
+
 }
 
 
@@ -489,6 +494,7 @@ fun AddRecipeView(
     ) {
         item {
             OutlinedTextField(
+                isError = !viewModel.titleError.isNullOrEmpty(),
                 value = viewModel.title,
                 onValueChange = viewModel::onTitleChange,
                 textStyle = MaterialTheme.typography.displayMedium,
@@ -513,6 +519,7 @@ fun AddRecipeView(
                 onValueChange = { newText -> viewModel.updateStep(index, newText) },
                 swapFunction = { viewModel.swapSteps(index) },
                 onDelete = { viewModel.removeStep(step) },
+                isError = !viewModel.stepErrors[index].isNullOrEmpty(),
                 step = step,
                 index = index,
                 modifier = Modifier
@@ -529,8 +536,9 @@ fun AddRecipeView(
         item {
             Button(
                 onClick = {
-                    viewModel.saveRecipe(context = context)
-                    navController.navigateUp()
+                    viewModel.saveRecipe(
+                        context = context,
+                        onSuccess = { navController.navigateUp() })
                 }, modifier = Modifier
                     .fillMaxWidth()
                     .padding(top = 16.dp, bottom = 16.dp)
@@ -551,7 +559,8 @@ fun StepElement(
     onDelete: () -> Unit,
     step: StepEl,
     index: Int,
-    modifier: Modifier
+    modifier: Modifier,
+    isError: Boolean = false
 ) {
     Column(modifier = modifier.padding(0.dp)) {
         Text(
@@ -562,10 +571,12 @@ fun StepElement(
         MethodTextField(
             value = step.text,
             onValueChange = onValueChange,
+            isError = isError
         )
         Row(horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
             IconButton(
                 onClick = swapFunction,
+                enabled = index > 0
             ) { Icon(imageVector = Icons.Filled.KeyboardArrowUp, contentDescription = "Move up") }
             IconButton(
                 onClick = onDelete,
@@ -611,9 +622,10 @@ fun String.toTitleCase(): String {
 fun MethodTextField(
     value: String,
     onValueChange: (String) -> Unit,
-    viewModel: AddRecipeViewModel = hiltViewModel()
+    viewModel: AddRecipeViewModel = hiltViewModel(),
+    isError: Boolean = false,
 
-) {
+    ) {
     var input by remember { mutableStateOf(TextFieldValue("")) }
     val allSuggestions = viewModel.allIngredients.collectAsState().value
 
@@ -658,6 +670,7 @@ fun MethodTextField(
 
         OutlinedTextField(
             value = input,
+            isError = isError,
             onValueChange = {
                 onValueChange(it.text)
                 input = it
@@ -779,6 +792,13 @@ class AddRecipeViewModel @Inject constructor(
     private val _steps = mutableStateListOf<StepEl>()
     val steps: List<StepEl> get() = _steps
 
+    var titleError by mutableStateOf<String?>(null)
+        private set
+
+    private val _stepErrors = mutableStateListOf<String?>()
+    val stepErrors: List<String?> get() = _stepErrors
+
+
     val allIngredients = ingredientDao.getAllIngredients().stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5000),
@@ -786,8 +806,32 @@ class AddRecipeViewModel @Inject constructor(
     )
     private val insertedRefs = mutableSetOf<Pair<Int, Int>>()
 
-    fun saveRecipe(context: Context) {
+    fun saveRecipe(context: Context, onSuccess: () -> Unit) {
         viewModelScope.launch {
+            var valid = true
+            if (title.isBlank()) {
+                titleError = "Title cannot be blank"
+                valid = false
+            } else {
+                titleError = null
+            }
+
+            _steps.forEachIndexed { index, step ->
+                if (step.text.isBlank()) {
+                    _stepErrors[index] = "Step cannot be blank"
+                    valid = false
+                } else {
+                    _stepErrors[index] = null
+                }
+
+            }
+            if (_steps.isEmpty()) {
+                valid = false
+            }
+
+            if (!valid) return@launch
+
+
             val recipe = Recipe(
                 recipeId = Random.nextInt(),
                 title = title,
@@ -843,20 +887,29 @@ class AddRecipeViewModel @Inject constructor(
 
                 }
             }
+            onSuccess()
         }
+
     }
 
     fun addNewStep() {
         _steps.add(StepEl())
+        _stepErrors.add(null)
 
     }
 
     fun removeStep(step: StepEl) {
-        _steps.remove(step)
+        val index = _steps.indexOf(step)
+        if (index != -1) {
+            _steps.removeAt(index)
+            _stepErrors.removeAt(index)
+        }
     }
 
     fun updateStep(index: Int, newText: String) {
         _steps[index] = _steps[index].copy(text = newText)
+        _stepErrors[index] = null
+
     }
 
     fun swapSteps(index: Int) {

@@ -7,6 +7,7 @@ import androidx.room.Database
 import androidx.room.Delete
 import androidx.room.Embedded
 import androidx.room.Entity
+import androidx.room.ForeignKey
 import androidx.room.Index
 import androidx.room.Insert
 import androidx.room.Junction
@@ -27,7 +28,7 @@ import javax.inject.Singleton
 
 @Database(
     entities = [Recipe::class, Step::class, Ingredient::class, IngredientStepCrossRef::class],
-    version = 5
+    version = 6
 )
 abstract class AppDatabase : RoomDatabase() {
     abstract fun recipeDao(): RecipeDao
@@ -88,7 +89,15 @@ interface RecipeDao {
 }
 
 
-@Entity(indices = [Index(value = ["recipe_id", "step_number"], unique = true)])
+@Entity(
+    indices = [Index(value = ["recipe_id", "step_number"], unique = true)],
+    foreignKeys = [ForeignKey(
+        entity = Recipe::class,
+        parentColumns = ["recipeId"],
+        childColumns = ["recipe_id"],
+        onDelete = ForeignKey.CASCADE
+    )]
+)
 data class Step(
     @PrimaryKey val stepId: Int,
     @ColumnInfo(name = "step_number") val stepNumber: Int,
@@ -171,7 +180,21 @@ interface IngredientDao {
 
 @Entity(
     primaryKeys = ["ingredientId", "stepId"],
-    indices = [Index(value = ["ingredientId"]), Index(value = ["stepId"])]
+    indices = [Index(value = ["ingredientId"]), Index(value = ["stepId"])],
+    foreignKeys = [
+        ForeignKey(
+            entity = Step::class,
+            parentColumns = ["stepId"],
+            childColumns = ["stepId"],
+            onDelete = ForeignKey.CASCADE
+        ),
+        ForeignKey(
+            entity = Ingredient::class,
+            parentColumns = ["ingredientId"],
+            childColumns = ["ingredientId"],
+            onDelete = ForeignKey.RESTRICT
+        )
+    ]
 )
 data class IngredientStepCrossRef(
     val ingredientId: Int,
