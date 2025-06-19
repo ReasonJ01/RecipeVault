@@ -157,6 +157,9 @@ interface IngredientDao {
     @Insert
     suspend fun insertAll(vararg ingredients: Ingredient)
 
+    @Query("UPDATE Ingredient SET image_url = :imageUrl WHERE ingredientId = :ingredientId")
+    suspend fun updateImageUrl(ingredientId: Int, imageUrl: String)
+
     @Delete
     suspend fun delete(ingredient: Ingredient)
 

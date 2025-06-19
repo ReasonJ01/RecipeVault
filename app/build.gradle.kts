@@ -1,3 +1,11 @@
+import java.io.FileInputStream
+import java.util.Properties
+
+val localProperties = Properties()
+localProperties.load(FileInputStream(rootProject.file("local.properties")))
+val openAiApiKey = localProperties["openai.api.key"] as String
+
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
@@ -26,14 +34,20 @@ android {
         schemaDirectory("$projectDir/schemas")
     }
 
+
     buildTypes {
+        debug {
+            buildConfigField("String", "OPENAI_API_KEY", "\"$openAiApiKey\"")
+        }
         release {
             isMinifyEnabled = false
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
+            buildConfigField("String", "OPENAI_API_KEY", "\"$openAiApiKey\"")
         }
+
     }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11
@@ -44,6 +58,8 @@ android {
     }
     buildFeatures {
         compose = true
+        buildConfig = true
+
     }
 }
 
@@ -57,11 +73,16 @@ dependencies {
     implementation(libs.hilt.android)
     implementation(libs.androidx.hilt.navigation.compose)
     ksp(libs.hilt.android.compiler)
+    implementation("com.squareup.okhttp3:logging-interceptor:4.12.0")
+
 
     implementation("io.coil-kt.coil3:coil-compose:3.2.0")
     implementation("io.coil-kt.coil3:coil-network-okhttp:3.2.0")
 
     implementation("org.apache.commons:commons-text:1.10.0")
+    implementation("androidx.work:work-runtime-ktx:2.9.0")
+    implementation("com.squareup.retrofit2:retrofit:3.0.0")
+    implementation("com.squareup.retrofit2:converter-gson:3.0.0")
 
 
 

@@ -1,5 +1,6 @@
 package com.example.recipevault
 
+import android.content.Context
 import android.media.Image
 import android.os.Bundle
 import android.util.Log
@@ -49,10 +50,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.style.TextAlign
@@ -67,6 +68,10 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import androidx.work.OneTimeWorkRequestBuilder
+import androidx.work.WorkManager
+import androidx.work.workDataOf
+import coil3.compose.AsyncImage
 import com.example.recipevault.ui.theme.RecipeVaultTheme
 import com.example.recipevault.ui.theme.headlineLargeGaramond
 import dagger.hilt.android.AndroidEntryPoint
@@ -154,6 +159,12 @@ fun HomeView(
 ) {
     val recipes = viewModel.recipes.collectAsState().value
 
+    val context = LocalContext.current
+    var showApiKeyDialog by remember { mutableStateOf(false) }
+    // To display the saved API key (optional)
+    var currentApiKey by remember { mutableStateOf(PrefsManager.getApiKey(context)) }
+
+
     if (recipes.isEmpty()) {
         Column(
             modifier = modifier
@@ -189,6 +200,25 @@ fun HomeView(
                     Text(text = "Add Recipe")
                 }
             }
+
+            item {
+                Button(onClick = { showApiKeyDialog = true }) {
+                    Text("Set API Key")
+                }
+            }
+            item {
+                ApiKeyEntryModal(
+                    showDialog = showApiKeyDialog,
+                    onDismissRequest = { showApiKeyDialog = false },
+                    onApiKeySaved = { savedKey ->
+                        currentApiKey = savedKey // Update the displayed key
+                        // You might want to trigger other actions here, like re-fetching data
+                        showApiKeyDialog = false
+                        Log.d("SettingsScreen", "API Key dialog confirmed and dismissed.")
+                    }
+                )
+            }
+
         }
     }
 
@@ -317,6 +347,10 @@ fun formatIngredient(name: String, quantity: String, rawUnit: String): String {
 
     if (quantity.startsWith("1") || quantity.startsWith("0")) {
         val singular = singlularUnits[canonical]
+        if (singular == null) {
+            return "$quantity $canonical of $name"
+        }
+
         return "$quantity $singular of $name"
 
     }
@@ -392,12 +426,20 @@ fun RecipeView(
                             val url = flatIngredients.find { it.name == tag.name }?.imageUrl
                             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                                 Card {
-                                    ImagePlaceholder(
-                                        text = tag.name.toTitleCase().take(2),
-                                        modifier = Modifier
-                                            .fillMaxWidth(0.25f)
-                                            .clipToBounds()
-                                    )
+                                    if (url != null) {
+                                        AsyncImage(
+                                            model = url,
+                                            contentDescription = null,
+                                            modifier = Modifier
+                                                .fillMaxWidth(0.3f)
+                                        )
+                                    } else {
+                                        ImagePlaceholder(
+                                            text = tag.name.toTitleCase().take(2),
+                                            modifier = Modifier
+                                                .fillMaxWidth(0.3f)
+                                        )
+                                    }
                                 }
 
                                 Text(text = tag.name.toTitleCase())
@@ -438,6 +480,7 @@ fun AddRecipeView(
     LaunchedEffect(Unit) {
         viewModel.addNewStep()
     }
+    val context = LocalContext.current
     val steps = viewModel.steps
     LazyColumn(
         modifier = modifier
@@ -486,7 +529,7 @@ fun AddRecipeView(
         item {
             Button(
                 onClick = {
-                    viewModel.saveRecipe()
+                    viewModel.saveRecipe(context = context)
                     navController.navigateUp()
                 }, modifier = Modifier
                     .fillMaxWidth()
@@ -743,7 +786,7 @@ class AddRecipeViewModel @Inject constructor(
     )
     private val insertedRefs = mutableSetOf<Pair<Int, Int>>()
 
-    fun saveRecipe() {
+    fun saveRecipe(context: Context) {
         viewModelScope.launch {
             val recipe = Recipe(
                 recipeId = Random.nextInt(),
@@ -774,7 +817,19 @@ class AddRecipeViewModel @Inject constructor(
                         name = ingredientName,
                         imageUrl = null
                     )
-                    if (existingIngredient == null) ingredientDao.insertAll(ingredient)
+                    if (existingIngredient == null) {
+                        ingredientDao.insertAll(ingredient)
+                        val inputData = workDataOf(
+                            "ingredientId" to ingredient.ingredientId,
+                            "ingredientName" to ingredient.name
+                        )
+                        val workRequest = OneTimeWorkRequestBuilder<IngredientWorker>()
+                            .setInputData(inputData)
+                            .build()
+                        WorkManager.getInstance(context).enqueue(workRequest)
+
+
+                    }
 
                     if (Pair(ingredient.ingredientId, step.stepId) !in insertedRefs) {
                         stepDao.insertCrossRef(
@@ -785,6 +840,7 @@ class AddRecipeViewModel @Inject constructor(
                         )
                         insertedRefs.add(Pair(ingredient.ingredientId, step.stepId))
                     }
+
                 }
             }
         }
