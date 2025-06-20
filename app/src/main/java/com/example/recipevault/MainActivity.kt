@@ -146,5 +146,8 @@ fun RecipeVaultApp() {
                 navController = navController,
             )
         }
+        composable("ingredients") {
+            IngredientView(modifier = mod, navController = navController)
+        }
     }
 }

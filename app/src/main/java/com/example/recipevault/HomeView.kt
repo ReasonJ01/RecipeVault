@@ -110,7 +110,10 @@ fun HomeView(
                     label = { Text("Ingredients") },
                     selected = false,
                     onClick = {
-                        scope.launch { drawerState.close() }
+                        scope.launch {
+                            drawerState.close()
+                            navController.navigate("ingredients")
+                        }
                     }
                 )
             }
