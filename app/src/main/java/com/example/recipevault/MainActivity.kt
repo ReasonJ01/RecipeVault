@@ -7,6 +7,8 @@ import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -206,87 +208,89 @@ fun HomeView(
         },
         drawerState = drawerState
     ) {
-        Scaffold(
-            floatingActionButton = {
-                FloatingActionButton(onClick = {
-                    navController.navigate("addRecipe")
-                }) {
-                    Icon(imageVector = Icons.Filled.Add, contentDescription = "Add Recipe")
+        Surface {
+            Scaffold(
+                floatingActionButton = {
+                    FloatingActionButton(onClick = {
+                        navController.navigate("addRecipe")
+                    }) {
+                        Icon(imageVector = Icons.Filled.Add, contentDescription = "Add Recipe")
+                    }
+                },
+                topBar = {
+                    TopAppBar(
+                        title = { Text("Recipies") },
+                        navigationIcon = {
+                            IconButton(onClick = { scope.launch { drawerState.open() } }) {
+                                Icon(
+                                    imageVector = Icons.Filled.Menu,
+                                    contentDescription = "Menu"
+                                )
+                            }
+                        })
                 }
-            },
-            topBar = {
-                TopAppBar(
-                    title = { Text("Recipies") },
-                    navigationIcon = {
-                        IconButton(onClick = { scope.launch { drawerState.open() } }) {
-                            Icon(
-                                imageVector = Icons.Filled.Menu,
-                                contentDescription = "Menu"
+
+
+            ) { contentPadding ->
+                if (recipes.isEmpty()) {
+                    Column(
+                        modifier = modifier
+                            .padding(contentPadding),
+                        verticalArrangement = Arrangement.Center,
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Text(
+                            "No recipes found",
+                            textAlign = TextAlign.Center,
+                        )
+                        Button(onClick = { navController.navigate("addRecipe") }) {
+                            Text(text = "Add Recipe")
+                        }
+                    }
+
+                } else {
+                    LazyColumn(
+                        verticalArrangement = Arrangement.spacedBy(16.dp),
+                        modifier = Modifier.padding(contentPadding),
+                    ) {
+                        items(recipes) { recipe ->
+                            RecipeCard(
+                                modifier = Modifier.fillMaxSize(),
+                                title = recipe.title ?: "No title",
+                                image = null,
+                                onClick = { navController.navigate("recipe/${recipe.recipeId}") }
                             )
                         }
-                    })
-            }
 
+                        item {
+                            HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+                        }
 
-        ) { contentPadding ->
-            if (recipes.isEmpty()) {
-                Column(
-                    modifier = modifier
-                        .padding(contentPadding),
-                    verticalArrangement = Arrangement.Center,
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    Text(
-                        "No recipes found",
-                        textAlign = TextAlign.Center,
-                    )
-                    Button(onClick = { navController.navigate("addRecipe") }) {
-                        Text(text = "Add Recipe")
-                    }
-                }
-
-            } else {
-                LazyColumn(
-                    verticalArrangement = Arrangement.spacedBy(16.dp),
-                    modifier = Modifier.padding(contentPadding),
-                ) {
-                    items(recipes) { recipe ->
-                        RecipeCard(
-                            modifier = Modifier.fillMaxSize(),
-                            title = recipe.title ?: "No title",
-                            image = null,
-                            onClick = { navController.navigate("recipe/${recipe.recipeId}") }
-                        )
-                    }
-
-                    item {
-                        HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
-                    }
-
-                    item {
-                        Row(
-                            modifier = Modifier
-                                .padding(bottom = 8.dp)
-                                .fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            Button(onClick = { navController.navigate("addRecipe") }) {
-                                Text(text = "Add Recipe")
-                            }
-
-                            Button(onClick = { showApiKeyDialog = true }) {
-                                Text("Set API Key")
-
-                            }
-                            ApiKeyEntryModal(
-                                showDialog = showApiKeyDialog,
-                                onDismissRequest = { showApiKeyDialog = false },
-                                onApiKeySaved = { savedKey ->
-                                    currentApiKey = savedKey // Update the displayed key
-                                    // You might want to trigger other actions here, like re-fetching data
-                                    showApiKeyDialog = false
+                        item {
+                            Row(
+                                modifier = Modifier
+                                    .padding(bottom = 8.dp)
+                                    .fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Button(onClick = { navController.navigate("addRecipe") }) {
+                                    Text(text = "Add Recipe")
                                 }
-                            )
+
+                                Button(onClick = { showApiKeyDialog = true }) {
+                                    Text("Set API Key")
+
+                                }
+                                ApiKeyEntryModal(
+                                    showDialog = showApiKeyDialog,
+                                    onDismissRequest = { showApiKeyDialog = false },
+                                    onApiKeySaved = { savedKey ->
+                                        currentApiKey = savedKey // Update the displayed key
+                                        // You might want to trigger other actions here, like re-fetching data
+                                        showApiKeyDialog = false
+                                    }
+                                )
+                            }
                         }
                     }
                 }
@@ -508,118 +512,122 @@ fun RecipeView(
             }
         )
     }
-    if (recipe == null) {
-        Text(text = "Loading...")
-    } else {
-        LazyColumn(
-            modifier = modifier
-                .fillMaxSize(),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
-        )
-        {
 
-            item {
-                Card {
-                    ImagePlaceholder(text = recipe.recipe.title ?: "No title")
+
+    Surface {
+        if (recipe == null) {
+            Text(text = "Loading...")
+        } else {
+            LazyColumn(
+                modifier = modifier
+                    .fillMaxSize(),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            )
+            {
+
+                item {
+                    Card {
+                        ImagePlaceholder(text = recipe.recipe.title ?: "No title")
+                    }
+
                 }
-
-            }
-            item {
-                Text(
-                    text = recipe.recipe.title ?: "No title",
-                    style = MaterialTheme.typography.displayMedium
-                )
-            }
-            item {
-                Text(
-                    text = "Ingredients",
-                    style = MaterialTheme.typography.headlineMediumGaramond
-                )
-            }
-            item {
-                FlowRow(
-                    horizontalArrangement = Arrangement.SpaceEvenly,
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    steps.forEach { step ->
-                        val ingredientTags = parseStepString(
-                            step.step.description ?: ""
-                        ).filterIsInstance<IngredientSegment>()
-                        for (tag in ingredientTags) {
-                            val url = flatIngredients.find { it.name == tag.name }?.imageUrl
-                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                Card {
-                                    if (url != null) {
-                                        AsyncImage(
-                                            model = url,
-                                            contentDescription = null,
-                                            modifier = Modifier
-                                                .fillMaxWidth(0.3f)
-                                        )
-                                    } else {
-                                        ImagePlaceholder(
-                                            text = tag.name.toTitleCase().take(2),
-                                            modifier = Modifier
-                                                .fillMaxWidth(0.3f)
-                                        )
+                item {
+                    Text(
+                        text = recipe.recipe.title ?: "No title",
+                        style = MaterialTheme.typography.displayMedium
+                    )
+                }
+                item {
+                    Text(
+                        text = "Ingredients",
+                        style = MaterialTheme.typography.headlineMediumGaramond
+                    )
+                }
+                item {
+                    FlowRow(
+                        horizontalArrangement = Arrangement.SpaceEvenly,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        steps.forEach { step ->
+                            val ingredientTags = parseStepString(
+                                step.step.description ?: ""
+                            ).filterIsInstance<IngredientSegment>()
+                            for (tag in ingredientTags) {
+                                val url = flatIngredients.find { it.name == tag.name }?.imageUrl
+                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                    Card {
+                                        if (url != null) {
+                                            AsyncImage(
+                                                model = url,
+                                                contentDescription = null,
+                                                modifier = Modifier
+                                                    .fillMaxWidth(0.3f)
+                                            )
+                                        } else {
+                                            ImagePlaceholder(
+                                                text = tag.name.toTitleCase().take(2),
+                                                modifier = Modifier
+                                                    .fillMaxWidth(0.3f)
+                                            )
+                                        }
                                     }
+
+                                    Text(text = tag.name.toTitleCase())
+                                    Text(text = "${tag.quantity} ${tag.unit}".trim())
                                 }
 
-                                Text(text = tag.name.toTitleCase())
-                                Text(text = "${tag.quantity} ${tag.unit}".trim())
                             }
-
                         }
+
+                    }
+                }
+                item {
+                    Text(text = "Method", style = MaterialTheme.typography.headlineMediumGaramond)
+                }
+
+                itemsIndexed(recipe.steps) { index, step ->
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth(),
+                        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+                    ) {
+                        Text(
+                            modifier = Modifier.padding(8.dp),
+                            text = "Step ${index + 1}",
+                            style = MaterialTheme.typography.headlineSmallGaramond
+                        )
+                        Text(text = formatStepForDisplay(step), modifier = Modifier.padding(8.dp))
                     }
 
                 }
-            }
-            item {
-                Text(text = "Method", style = MaterialTheme.typography.headlineMediumGaramond)
-            }
 
-            itemsIndexed(recipe.steps) { index, step ->
-                Card(
-                    modifier = Modifier
-                        .fillMaxWidth(),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
-                ) {
-                    Text(
-                        modifier = Modifier.padding(8.dp),
-                        text = "Step ${index + 1}",
-                        style = MaterialTheme.typography.headlineSmallGaramond
-                    )
-                    Text(text = formatStepForDisplay(step), modifier = Modifier.padding(8.dp))
+                item {
+                    HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
                 }
 
-            }
-
-            item {
-                HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
-            }
-
-            item {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Button(
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = MaterialTheme.colorScheme.error,
-                            contentColor = MaterialTheme.colorScheme.onError
-                        ),
-                        onClick = { showDialog = true },
-                        modifier = Modifier
-                            .padding(bottom = 8.dp)
+                item {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
                     ) {
-                        Text(text = "Delete Recipe")
-                    }
-                    Button(
-                        onClick = { navController.navigate("editRecipe/${recipe.recipe.recipeId}") },
-                        modifier = Modifier
-                            .padding(bottom = 8.dp)
-                    ) {
-                        Text(text = "Update Recipe")
+                        Button(
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = MaterialTheme.colorScheme.error,
+                                contentColor = MaterialTheme.colorScheme.onError
+                            ),
+                            onClick = { showDialog = true },
+                            modifier = Modifier
+                                .padding(bottom = 8.dp)
+                        ) {
+                            Text(text = "Delete Recipe")
+                        }
+                        Button(
+                            onClick = { navController.navigate("editRecipe/${recipe.recipe.recipeId}") },
+                            modifier = Modifier
+                                .padding(bottom = 8.dp)
+                        ) {
+                            Text(text = "Update Recipe")
+                        }
                     }
                 }
             }
@@ -962,6 +970,8 @@ fun RecipeVaultApp() {
         .padding(top = 12.dp)
         .fillMaxSize()
     NavHost(
+        enterTransition = { fadeIn() },
+        exitTransition = { fadeOut() },
         navController = navController,
         startDestination = "home",
     ) {
