@@ -1,5 +1,6 @@
 package com.example.recipevault
 
+import android.content.Context
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
@@ -24,12 +25,16 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.navigation.NavHostController
+import androidx.work.OneTimeWorkRequestBuilder
+import androidx.work.WorkManager
+import androidx.work.workDataOf
 import coil3.compose.AsyncImage
 import com.example.recipevault.ui.theme.headlineMediumGaramond
 import com.example.recipevault.ui.theme.headlineSmallGaramond
@@ -47,6 +52,7 @@ fun RecipeView(
     recipeId: Int?,
     viewModel: RecipeViewModel = hiltViewModel()
 ) {
+    val context = LocalContext.current
     val recipe = viewModel.recipe?.collectAsState()?.value
     viewModel.fetchSteps()
     val ingredients = viewModel.stepsWithIngredients.map { it.ingredients }
@@ -83,7 +89,11 @@ fun RecipeView(
 
                 item {
                     Card {
-                        ImagePlaceholder(text = recipe.recipe.title ?: "No title")
+                        if (recipe.recipe.imageUrl.isNullOrEmpty()) {
+                            ImagePlaceholder(text = recipe.recipe.title ?: "No title")
+                        } else {
+                            AsyncImage(model = recipe.recipe.imageUrl, contentDescription = null)
+                        }
                     }
 
                 }
@@ -183,6 +193,13 @@ fun RecipeView(
                         ) {
                             Text(text = "Update Recipe")
                         }
+                        Button(
+                            onClick = { viewModel.regenerateImage(context, recipe.recipe) },
+                            modifier = Modifier
+                                .padding(bottom = 8.dp)
+                        ) {
+                            Text(text = "Regenerate Image")
+                        }
                     }
                 }
             }
@@ -223,6 +240,28 @@ class RecipeViewModel @Inject constructor(
     fun deleteRecipe() {
         viewModelScope.launch {
             recipe?.value?.let { dao.delete(it.recipe) }
+        }
+    }
+
+    fun regenerateImage(context: Context, recipe: Recipe) {
+        viewModelScope.launch {
+            val key = PrefsManager.getApiKey(context)
+            if (key.isNullOrEmpty()) return@launch
+            val inputData = workDataOf(
+                "ingredientId" to recipe.recipeId,
+            )
+            val workName = "regenerate_${recipe.recipeId}"
+
+
+            val workRequest = OneTimeWorkRequestBuilder<RecipeWorker>()
+                .setInputData(inputData)
+                .build()
+
+            WorkManager.getInstance(context).enqueueUniqueWork(
+                workName,
+                androidx.work.ExistingWorkPolicy.KEEP,
+                workRequest
+            )
         }
     }
 

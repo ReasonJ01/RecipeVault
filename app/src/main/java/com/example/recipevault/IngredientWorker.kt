@@ -12,7 +12,6 @@ import dagger.assisted.Assisted
 import dagger.assisted.AssistedInject
 import java.io.File
 import java.io.FileOutputStream
-import kotlin.random.Random
 
 @HiltWorker
 class IngredientWorker @AssistedInject constructor(
@@ -51,8 +50,7 @@ class IngredientWorker @AssistedInject constructor(
 
         val client = RetrofitClient.getClient(key)
         val prompt =
-            "An image rendered in a vintage etching or engraving style, featuring fine cross-hatching and a hand-drawn, textured appearance reminiscent of 19th-century botanical or scientific illustrations. The image depicts only ${ingredientName.toTitleCase()}, shown in a single, appropriate form for culinary use..."
-
+            "An image rendered in a vintage etching or engraving style, featuring fine cross-hatching and a hand-drawn, textured appearance reminiscent of 19th-century botanical or scientific illustrations. The image depicts only ${ingredientName.toTitleCase()}, shown in a single, appropriate form for culinary use (e.g., whole, chopped, ground, or in a suitable, traditional container such as a jar, bowl, or glass if needed). Do not include multiple forms or variations of the ingredient. No additional objects are included. The composition is centered, in FULL color. The background is plain white. The ingredient’s color should be vibrant."
         return try {
             val response = client.generateImage(ImageGenerationRequest(prompt = prompt))
             response.data.firstOrNull()?.b64_json
@@ -71,8 +69,7 @@ class IngredientWorker @AssistedInject constructor(
         val bitmap = BitmapFactory.decodeByteArray(decodedBytes, 0, decodedBytes.size)
 
         val dir = context.getExternalFilesDir("ingredient_images") ?: context.filesDir
-        val post = Random.nextInt()
-        val file = File(dir, "${filename}_$post.png")
+        val file = File(dir, "${filename}.png")
 
         FileOutputStream(file).use { out ->
             bitmap.compress(Bitmap.CompressFormat.PNG, 100, out)

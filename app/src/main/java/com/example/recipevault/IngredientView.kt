@@ -164,11 +164,14 @@ fun SpinningIconButton(onClick: () -> Unit) {
     }) {
         LaunchedEffect(spinTrigger) {
             if (spinTrigger) {
-                rotation.snapTo(0f)
-                rotation.animateTo(
-                    targetValue = 720f,
-                    animationSpec = tween(durationMillis = 1800, easing = EaseOut)
-                )
+                repeat(10) {
+                    rotation.snapTo(0f)
+                    rotation.animateTo(
+                        targetValue = 720f,
+                        animationSpec = tween(durationMillis = 1800, easing = EaseOut)
+                    )
+                }
+
                 spinTrigger = false
             }
         }
@@ -210,7 +213,7 @@ class IngredientViewModel @Inject constructor(
 
             WorkManager.getInstance(context).enqueueUniqueWork(
                 workName,
-                androidx.work.ExistingWorkPolicy.REPLACE,
+                androidx.work.ExistingWorkPolicy.KEEP,
                 workRequest
             )
         }

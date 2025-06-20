@@ -239,6 +239,24 @@ class AddRecipeViewModel @Inject constructor(
                     }
 
                 }
+
+            }
+            val key = PrefsManager.getApiKey(context)
+            if (!key.isNullOrEmpty()) {
+                val workName = "generate_thumbnail_${recipe.recipeId}"
+                val inputData = workDataOf(
+                    "recipeID" to recipe.recipeId,
+                )
+
+                val workRequest = OneTimeWorkRequestBuilder<RecipeWorker>()
+                    .setInputData(inputData)
+                    .build()
+
+                WorkManager.getInstance(context).enqueueUniqueWork(
+                    workName,
+                    androidx.work.ExistingWorkPolicy.REPLACE,
+                    workRequest
+                )
             }
             onSuccess()
         }

@@ -28,7 +28,7 @@ import javax.inject.Singleton
 
 @Database(
     entities = [Recipe::class, Step::class, Ingredient::class, IngredientStepCrossRef::class],
-    version = 7
+    version = 8
 )
 abstract class AppDatabase : RoomDatabase() {
     abstract fun recipeDao(): RecipeDao
@@ -86,6 +86,12 @@ interface RecipeDao {
 
     @Update
     suspend fun updateAll(vararg recipes: Recipe)
+
+    @Query("UPDATE Recipe SET image_url = :imageUrl WHERE recipeId = :recipeId")
+    suspend fun updateImageUrl(
+        recipeId: Int,
+        imageUrl: String,
+    )
 }
 
 

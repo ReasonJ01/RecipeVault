@@ -1,6 +1,5 @@
 package com.example.recipevault
 
-import android.media.Image
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -47,6 +46,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.navigation.NavHostController
+import coil3.compose.AsyncImage
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.stateIn
@@ -58,7 +58,7 @@ import javax.inject.Inject
 fun RecipeCard(
     modifier: Modifier,
     title: String,
-    image: Image?,
+    image: String?,
     onClick: () -> Unit
 ) {
     Card(
@@ -69,7 +69,7 @@ fun RecipeCard(
         if (image == null) {
             ImagePlaceholder(text = title)
         } else {
-            ImagePlaceholder(text = title)
+            AsyncImage(model = image, contentDescription = null)
         }
 
         Text(
@@ -163,13 +163,15 @@ fun HomeView(
                 } else {
                     LazyColumn(
                         verticalArrangement = Arrangement.spacedBy(16.dp),
-                        modifier = Modifier.padding(contentPadding),
+                        modifier = Modifier
+                            .padding(contentPadding)
+                            .padding(horizontal = 8.dp),
                     ) {
                         items(recipes) { recipe ->
                             RecipeCard(
                                 modifier = Modifier.fillMaxSize(),
                                 title = recipe.title ?: "No title",
-                                image = null,
+                                image = recipe.imageUrl,
                                 onClick = { navController.navigate("recipe/${recipe.recipeId}") }
                             )
                         }
