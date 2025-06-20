@@ -28,7 +28,7 @@ import javax.inject.Singleton
 
 @Database(
     entities = [Recipe::class, Step::class, Ingredient::class, IngredientStepCrossRef::class],
-    version = 6
+    version = 7
 )
 abstract class AppDatabase : RoomDatabase() {
     abstract fun recipeDao(): RecipeDao
@@ -153,6 +153,7 @@ data class Ingredient(
     @PrimaryKey val ingredientId: Int,
     @ColumnInfo(name = "name") val name: String?,
     @ColumnInfo(name = "image_url") val imageUrl: String?,
+    val lastUpdated: Long = System.currentTimeMillis()
 )
 
 @Dao
@@ -169,8 +170,12 @@ interface IngredientDao {
     @Insert
     suspend fun insertAll(vararg ingredients: Ingredient)
 
-    @Query("UPDATE Ingredient SET image_url = :imageUrl WHERE ingredientId = :ingredientId")
-    suspend fun updateImageUrl(ingredientId: Int, imageUrl: String)
+    @Query("UPDATE Ingredient SET image_url = :imageUrl, lastUpdated = :timestamp WHERE ingredientId = :ingredientId")
+    suspend fun updateImageUrl(
+        ingredientId: Int,
+        imageUrl: String,
+        timestamp: Long = System.currentTimeMillis()
+    )
 
     @Delete
     suspend fun delete(ingredient: Ingredient)

@@ -1,12 +1,5 @@
-import java.io.FileInputStream
-import java.util.Properties
-
-val localProperties = Properties()
-localProperties.load(FileInputStream(rootProject.file("local.properties")))
-val openAiApiKey = localProperties["openai.api.key"] as String
-
-
 plugins {
+
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
@@ -14,6 +7,7 @@ plugins {
     id("com.google.devtools.ksp")
     id("com.google.dagger.hilt.android")
     id("androidx.room")
+
 }
 
 android {
@@ -37,7 +31,6 @@ android {
 
     buildTypes {
         debug {
-            buildConfigField("String", "OPENAI_API_KEY", "\"$openAiApiKey\"")
         }
         release {
             isMinifyEnabled = false
@@ -45,7 +38,6 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
-            buildConfigField("String", "OPENAI_API_KEY", "\"$openAiApiKey\"")
         }
 
     }
@@ -64,25 +56,28 @@ android {
 }
 
 dependencies {
-    val room_version = "2.7.1"
-
-    implementation("androidx.room:room-runtime:$room_version")
-    ksp("androidx.room:room-compiler:$room_version")
-
-
-    implementation(libs.hilt.android)
-    implementation(libs.androidx.hilt.navigation.compose)
-    ksp(libs.hilt.android.compiler)
-    implementation("com.squareup.okhttp3:logging-interceptor:4.12.0")
+    implementation("com.google.dagger:hilt-android:2.56.2")
+    ksp("com.google.dagger:hilt-compiler:2.56.2")
+    implementation("androidx.hilt:hilt-work:1.2.0")
+    ksp("androidx.hilt:hilt-compiler:1.2.0")
+    implementation("androidx.hilt:hilt-navigation-compose:1.2.0")
 
 
-    implementation("io.coil-kt.coil3:coil-compose:3.2.0")
-    implementation("io.coil-kt.coil3:coil-network-okhttp:3.2.0")
 
-    implementation("org.apache.commons:commons-text:1.10.0")
-    implementation("androidx.work:work-runtime-ktx:2.9.0")
-    implementation("com.squareup.retrofit2:retrofit:3.0.0")
-    implementation("com.squareup.retrofit2:converter-gson:3.0.0")
+
+    implementation(libs.androidx.room.runtime.android)
+    implementation(libs.androidx.room.common.jvm)
+    ksp("androidx.room:room-compiler:2.7.1")
+
+    implementation(libs.logging.interceptor)
+
+    implementation(libs.coil.compose)
+    implementation(libs.coil.network.okhttp)
+
+    implementation(libs.commons.text)
+    implementation(libs.androidx.work.runtime.ktx)
+    implementation(libs.retrofit)
+    implementation(libs.converter.gson)
 
 
 

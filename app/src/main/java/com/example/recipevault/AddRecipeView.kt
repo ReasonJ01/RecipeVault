@@ -215,10 +215,15 @@ class AddRecipeViewModel @Inject constructor(
                             "ingredientId" to ingredient.ingredientId,
                             "ingredientName" to ingredient.name
                         )
-                        val workRequest = OneTimeWorkRequestBuilder<IngredientWorker>()
-                            .setInputData(inputData)
-                            .build()
-                        WorkManager.getInstance(context).enqueue(workRequest)
+
+                        val key = PrefsManager.getApiKey(context)
+                        if (!key.isNullOrEmpty()) {
+                            val workRequest = OneTimeWorkRequestBuilder<IngredientWorker>()
+                                .setInputData(inputData)
+                                .build()
+                            WorkManager.getInstance(context).enqueue(workRequest)
+
+                        }
 
 
                     }

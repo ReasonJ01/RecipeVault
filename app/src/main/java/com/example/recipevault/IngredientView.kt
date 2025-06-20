@@ -1,6 +1,7 @@
 package com.example.recipevault
 
 import android.content.Context
+import android.util.Log
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.EaseOut
 import androidx.compose.animation.core.tween
@@ -114,6 +115,7 @@ fun IngredientView(
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     items(ingredients, key = { it.ingredientId }) { ingredient ->
+                        Log.d("IngredientViewModel", "ingredient: $ingredient")
                         if (ingredient.name == null) return@items
 
                         Card(modifier = Modifier.fillMaxWidth()) {
@@ -156,7 +158,10 @@ fun SpinningIconButton(onClick: () -> Unit) {
     var spinTrigger by remember { mutableStateOf(false) }
     val rotation = remember { Animatable(0f) }
 
-    IconButton(onClick = { spinTrigger = true }) {
+    IconButton(onClick = {
+        spinTrigger = true
+        onClick()
+    }) {
         LaunchedEffect(spinTrigger) {
             if (spinTrigger) {
                 rotation.snapTo(0f)
@@ -179,7 +184,7 @@ fun SpinningIconButton(onClick: () -> Unit) {
 
 @HiltViewModel
 class IngredientViewModel @Inject constructor(
-    private val dao: IngredientDao,
+    dao: IngredientDao,
 ) : ViewModel() {
     val ingredients = dao.getAllIngredients().stateIn(
         scope = viewModelScope,
@@ -188,6 +193,7 @@ class IngredientViewModel @Inject constructor(
     )
 
     fun regenerateImage(ingredient: Ingredient, context: Context) {
+        Log.d("IngredientViewModel", "regenerateImage: $ingredient")
         viewModelScope.launch {
             val key = PrefsManager.getApiKey(context)
             if (key.isNullOrEmpty()) return@launch
