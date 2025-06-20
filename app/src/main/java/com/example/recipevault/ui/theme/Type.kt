@@ -65,3 +65,17 @@ val Typography.headlineLargeGaramond: TextStyle
         fontWeight = FontWeight.Normal,
         fontSize = 32.sp
     )
+
+val Typography.headlineMediumGaramond: TextStyle
+    get() = TextStyle(
+        fontFamily = EBGaramond,
+        fontWeight = FontWeight.Normal,
+        fontSize = 28.sp
+    )
+
+val Typography.headlineSmallGaramond: TextStyle
+    get() = TextStyle(
+        fontFamily = EBGaramond,
+        fontWeight = FontWeight.Normal,
+        fontSize = 24.sp
+    )

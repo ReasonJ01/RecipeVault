@@ -71,15 +71,11 @@ fun ApiKeyEntryModal(
             confirmButton = {
                 Button(
                     onClick = {
-                        if (tempApiKey.isNotBlank()) {
-                            PrefsManager.saveApiKey(context, tempApiKey)
-                            Log.d("ApiKeyModal", "API Key saved: $tempApiKey")
-                            onApiKeySaved(tempApiKey) // Notify caller
-                            errorText = null
-                            onDismissRequest() // Close the dialog
-                        } else {
-                            errorText = "API Key cannot be empty"
-                        }
+                        PrefsManager.saveApiKey(context, tempApiKey)
+                        Log.d("ApiKeyModal", "API Key saved: $tempApiKey")
+                        onApiKeySaved(tempApiKey) // Notify caller
+                        errorText = null
+                        onDismissRequest() // Close the dialog
                     }
                 ) {
                     Text("Save")

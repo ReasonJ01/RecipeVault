@@ -25,10 +25,10 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -42,6 +42,7 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.SuggestionChip
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -51,6 +52,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -58,6 +60,7 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.style.TextAlign
@@ -77,7 +80,8 @@ import androidx.work.WorkManager
 import androidx.work.workDataOf
 import coil3.compose.AsyncImage
 import com.example.recipevault.ui.theme.RecipeVaultTheme
-import com.example.recipevault.ui.theme.headlineLargeGaramond
+import com.example.recipevault.ui.theme.headlineMediumGaramond
+import com.example.recipevault.ui.theme.headlineSmallGaramond
 import dagger.hilt.android.AndroidEntryPoint
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.SharingStarted
@@ -97,7 +101,13 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         setContent {
             RecipeVaultTheme {
-                RecipeVaultApp()
+                Surface(
+                    modifier = Modifier.fillMaxSize(),
+                    color = MaterialTheme.colorScheme.background
+                ) {
+                    RecipeVaultApp()
+                }
+
 
             }
         }
@@ -452,7 +462,10 @@ fun RecipeView(
         {
 
             item {
-                ImagePlaceholder(text = recipe.recipe.title ?: "No title")
+                Card {
+                    ImagePlaceholder(text = recipe.recipe.title ?: "No title")
+                }
+
             }
             item {
                 Text(
@@ -461,13 +474,21 @@ fun RecipeView(
                 )
             }
             item {
-                Text(
-                    text = recipe.recipe.description ?: "No description",
-                    style = MaterialTheme.typography.bodyMedium
-                )
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                ) {
+                    Text(
+                        text = recipe.recipe.description ?: "No description",
+                        style = MaterialTheme.typography.bodyMedium,
+                        modifier = Modifier.padding(8.dp),
+                    )
+
+                }
+
             }
             item {
-                Text(text = "Ingredients", style = MaterialTheme.typography.displaySmall)
+                Text(text = "Ingredients", style = MaterialTheme.typography.headlineMediumGaramond)
             }
             item {
                 FlowRow(
@@ -508,41 +529,53 @@ fun RecipeView(
                 }
             }
             item {
-                Text(text = "Method", style = MaterialTheme.typography.displaySmall)
+                Text(text = "Method", style = MaterialTheme.typography.headlineMediumGaramond)
             }
 
             itemsIndexed(recipe.steps) { index, step ->
-                Text(
-                    text = "Step ${index + 1}",
-                    style = MaterialTheme.typography.headlineLargeGaramond
-                )
-                Text(text = formatStepForDisplay(step))
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth(),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+                ) {
+                    Text(
+                        modifier = Modifier.padding(8.dp),
+                        text = "Step ${index + 1}",
+                        style = MaterialTheme.typography.headlineSmallGaramond
+                    )
+                    Text(text = formatStepForDisplay(step), modifier = Modifier.padding(8.dp))
+                }
+
             }
 
             item {
-                Column(
+                HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+            }
+
+            item {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween
                 ) {
-                    HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
                     Button(
                         colors = ButtonDefaults.buttonColors(
                             containerColor = MaterialTheme.colorScheme.error,
                             contentColor = MaterialTheme.colorScheme.onError
                         ),
                         onClick = { showDialog = true },
-                        modifier = modifier
+                        modifier = Modifier
                             .padding(bottom = 8.dp)
                     ) {
                         Text(text = "Delete Recipe")
                     }
                     Button(
                         onClick = { navController.navigate("editRecipe/${recipe.recipe.recipeId}") },
-                        modifier = modifier
+                        modifier = Modifier
                             .padding(bottom = 8.dp)
                     ) {
-                        Text(text = "Delete Recipe")
+                        Text(text = "Update Recipe")
                     }
                 }
-
             }
 
         }
@@ -557,9 +590,12 @@ fun EditRecipeView(
     navController: NavHostController,
     viewModel: EditRecipeViewModel = hiltViewModel()
 ) {
+    val listState = rememberLazyListState()
+    val coroutineScope = rememberCoroutineScope()
     val context = LocalContext.current
     val steps = viewModel.steps
     LazyColumn(
+        state = listState,
         modifier = modifier
             .fillMaxSize(),
         verticalArrangement = Arrangement.spacedBy(8.dp)
@@ -603,7 +639,12 @@ fun EditRecipeView(
         }
         item {
             Box(modifier = Modifier.animateItem()) {
-                OutlinedButton(onClick = { viewModel.addNewStep() }) { Text(text = "Add Step") }
+                OutlinedButton(onClick = {
+                    viewModel.addNewStep()
+                    coroutineScope.launch {
+                        listState.animateScrollToItem(viewModel.steps.lastIndex)
+                    }
+                }) { Text(text = "Add Step") }
             }
 
         }
@@ -632,12 +673,17 @@ fun AddRecipeView(
     viewModel: AddRecipeViewModel = hiltViewModel()
 
 ) {
+    val listState = rememberLazyListState()
+    val coroutineScope = rememberCoroutineScope()
+
+
     LaunchedEffect(Unit) {
         viewModel.addNewStep()
     }
     val context = LocalContext.current
     val steps = viewModel.steps
     LazyColumn(
+        state = listState,
         modifier = modifier
             .fillMaxSize(),
         verticalArrangement = Arrangement.spacedBy(8.dp)
@@ -656,13 +702,13 @@ fun AddRecipeView(
                     )
                 }),
                 colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = MaterialTheme.colorScheme.background,
-                    unfocusedBorderColor = MaterialTheme.colorScheme.background,
+                    focusedBorderColor = Color.Transparent,
+                    unfocusedBorderColor = Color.Transparent,
                     unfocusedTextColor = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.8f)
                 )
 
             )
-            Text("Method", style = MaterialTheme.typography.displaySmall)
+            Text("Method", style = MaterialTheme.typography.headlineMediumGaramond)
         }
         itemsIndexed(steps, key = { _, step -> step.stepId }) { index, step ->
             StepElement(
@@ -679,7 +725,12 @@ fun AddRecipeView(
         }
         item {
             Box(modifier = Modifier.animateItem()) {
-                OutlinedButton(onClick = { viewModel.addNewStep() }) { Text(text = "Add Step") }
+                OutlinedButton(onClick = {
+                    viewModel.addNewStep()
+                    coroutineScope.launch {
+                        listState.animateScrollToItem(viewModel.steps.lastIndex)
+                    }
+                }) { Text(text = "Add Step") }
             }
 
         }
@@ -712,30 +763,42 @@ fun StepElement(
     modifier: Modifier,
     isError: Boolean = false
 ) {
-    Column(modifier = modifier.padding(0.dp)) {
-        Text(
-            text = "Step ${index + 1}",
-            style = MaterialTheme.typography.displaySmall,
-            modifier = Modifier.padding(8.dp)
-        )
-        MethodTextField(
-            value = step.description ?: "",
-            onValueChange = onValueChange,
-            isError = isError
-        )
-        Row(horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
-            IconButton(
-                onClick = swapFunction,
-                enabled = index > 0
-            ) { Icon(imageVector = Icons.Filled.KeyboardArrowUp, contentDescription = "Move up") }
-            IconButton(
-                onClick = onDelete,
+
+    Card(modifier = modifier) {
+        Column() {
+            Text(
+                text = "Step ${index + 1}",
+                style = MaterialTheme.typography.headlineSmallGaramond,
+                modifier = Modifier.padding(8.dp)
+            )
+            MethodTextField(
+                value = step.description ?: "",
+                onValueChange = onValueChange,
+                isError = isError
+            )
+            Row(
+                horizontalArrangement = Arrangement.SpaceBetween,
+                modifier = Modifier.fillMaxWidth()
             ) {
-                Icon(
-                    imageVector = Icons.Filled.Delete,
-                    contentDescription = "Delete",
-                    tint = MaterialTheme.colorScheme.error
-                )
+                IconButton(
+                    onClick = swapFunction,
+                    enabled = index > 0
+                ) {
+
+                    Icon(
+                        painter = painterResource(R.drawable.baseline_arrow_upward_24),
+                        contentDescription = "Move up"
+                    )
+                }
+                IconButton(
+                    onClick = onDelete,
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.Delete,
+                        contentDescription = "Delete",
+                        tint = MaterialTheme.colorScheme.error
+                    )
+                }
             }
         }
     }
@@ -837,8 +900,8 @@ fun MethodTextField(
                 )
             }),
             colors = OutlinedTextFieldDefaults.colors(
-                focusedBorderColor = MaterialTheme.colorScheme.background,
-                unfocusedBorderColor = MaterialTheme.colorScheme.background,
+                focusedBorderColor = Color.Transparent,
+                unfocusedBorderColor = Color.Transparent,
                 unfocusedTextColor = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.8f)
             )
 
@@ -1016,7 +1079,7 @@ class EditRecipeViewModel @Inject constructor(
 
 
             recipe?.let { recipeDao.updateAll(it.copy(title = title)) }
-            
+
             stepDao.updateAll(*_steps.toTypedArray())
 
             _steps.forEachIndexed { index, step ->
@@ -1035,12 +1098,14 @@ class EditRecipeViewModel @Inject constructor(
                             "ingredientId" to ingredient.ingredientId,
                             "ingredientName" to ingredient.name
                         )
-                        val workRequest = OneTimeWorkRequestBuilder<IngredientWorker>()
-                            .setInputData(inputData)
-                            .build()
-                        WorkManager.getInstance(context).enqueue(workRequest)
 
-
+                        val key = PrefsManager.getApiKey(context)
+                        if (!key.isNullOrEmpty()) {
+                            val workRequest = OneTimeWorkRequestBuilder<IngredientWorker>()
+                                .setInputData(inputData)
+                                .build()
+                            WorkManager.getInstance(context).enqueue(workRequest)
+                        }
                     }
 
                     if (Pair(ingredient.ingredientId, step.stepId) !in existingRefs) {
