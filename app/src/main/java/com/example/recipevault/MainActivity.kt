@@ -27,6 +27,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.AlertDialog
@@ -34,6 +35,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -41,6 +43,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SuggestionChip
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -178,64 +181,72 @@ fun HomeView(
     // To display the saved API key (optional)
     var currentApiKey by remember { mutableStateOf(PrefsManager.getApiKey(context)) }
 
-
-    if (recipes.isEmpty()) {
-        Column(
-            modifier = modifier
-                .padding(16.dp),
-            verticalArrangement = Arrangement.Center,
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            Text(
-                "No recipes found",
-                textAlign = TextAlign.Center,
-            )
-            Button(onClick = { navController.navigate("addRecipe") }) {
-                Text(text = "Add Recipe")
+    Scaffold(
+        floatingActionButton = {
+            FloatingActionButton(onClick = {
+                navController.navigate("addRecipe")
+            }) {
+                Icon(imageVector = Icons.Filled.Add, contentDescription = "Add Recipe")
             }
         }
-
-    } else {
-        LazyColumn(
-            verticalArrangement = Arrangement.spacedBy(16.dp),
-            modifier = modifier
-        ) {
-            items(recipes) { recipe ->
-                RecipeCard(
-                    modifier = Modifier.fillMaxSize(),
-                    title = recipe.title ?: "No title",
-                    description = recipe.description ?: "No description",
-                    image = null,
-                    onClick = { navController.navigate("recipe/${recipe.recipeId}") }
+    ) { contentPadding ->
+        if (recipes.isEmpty()) {
+            Column(
+                modifier = modifier
+                    .padding(16.dp)
+                    .padding(contentPadding),
+                verticalArrangement = Arrangement.Center,
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Text(
+                    "No recipes found",
+                    textAlign = TextAlign.Center,
                 )
-            }
-            item {
                 Button(onClick = { navController.navigate("addRecipe") }) {
                     Text(text = "Add Recipe")
                 }
             }
 
-            item {
-                Button(onClick = { showApiKeyDialog = true }) {
-                    Text("Set API Key")
+        } else {
+            LazyColumn(
+                verticalArrangement = Arrangement.spacedBy(16.dp),
+                modifier = modifier.padding(contentPadding),
+            ) {
+                items(recipes) { recipe ->
+                    RecipeCard(
+                        modifier = Modifier.fillMaxSize(),
+                        title = recipe.title ?: "No title",
+                        description = recipe.description ?: "No description",
+                        image = null,
+                        onClick = { navController.navigate("recipe/${recipe.recipeId}") }
+                    )
                 }
-            }
-            item {
-                ApiKeyEntryModal(
-                    showDialog = showApiKeyDialog,
-                    onDismissRequest = { showApiKeyDialog = false },
-                    onApiKeySaved = { savedKey ->
-                        currentApiKey = savedKey // Update the displayed key
-                        // You might want to trigger other actions here, like re-fetching data
-                        showApiKeyDialog = false
+                item {
+                    Button(onClick = { navController.navigate("addRecipe") }) {
+                        Text(text = "Add Recipe")
                     }
-                )
-            }
+                }
 
+                item {
+                    Button(onClick = { showApiKeyDialog = true }) {
+                        Text("Set API Key")
+                    }
+                }
+                item {
+                    ApiKeyEntryModal(
+                        showDialog = showApiKeyDialog,
+                        onDismissRequest = { showApiKeyDialog = false },
+                        onApiKeySaved = { savedKey ->
+                            currentApiKey = savedKey // Update the displayed key
+                            // You might want to trigger other actions here, like re-fetching data
+                            showApiKeyDialog = false
+                        }
+                    )
+                }
+
+            }
         }
     }
-
-
 }
 
 
@@ -451,12 +462,12 @@ fun RecipeView(
             }
         )
     }
-
     if (recipe == null) {
         Text(text = "Loading...")
     } else {
         LazyColumn(
-            modifier = modifier.fillMaxSize(),
+            modifier = modifier
+                .fillMaxSize(),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         )
         {
@@ -488,7 +499,10 @@ fun RecipeView(
 
             }
             item {
-                Text(text = "Ingredients", style = MaterialTheme.typography.headlineMediumGaramond)
+                Text(
+                    text = "Ingredients",
+                    style = MaterialTheme.typography.headlineMediumGaramond
+                )
             }
             item {
                 FlowRow(
@@ -577,12 +591,10 @@ fun RecipeView(
                     }
                 }
             }
-
         }
     }
-
-
 }
+
 
 @Composable
 fun EditRecipeView(
