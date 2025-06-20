@@ -12,6 +12,9 @@ val EBGaramond = FontFamily(
     Font(R.font.eb_garamond, weight = FontWeight.Normal)
 )
 
+val Lato = FontFamily(
+    Font(R.font.lato_regular, weight = FontWeight.Normal)
+)
 
 val customTypography = Typography(
     displayLarge = TextStyle(
@@ -29,6 +32,19 @@ val customTypography = Typography(
         fontWeight = FontWeight.Normal,
         fontSize = 36.sp
     ),
+    bodyLarge = TextStyle(
+        fontSize = 18.sp,
+        fontFamily = Lato,
+        fontWeight = FontWeight.Normal
+    ),
+    bodyMedium = TextStyle(
+        fontSize = 16.sp,
+        fontFamily = Lato
+    ),
+    bodySmall = TextStyle(
+        fontSize = 14.sp,
+        fontFamily = Lato
+    )
 )
 
 

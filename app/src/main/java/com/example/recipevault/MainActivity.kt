@@ -30,16 +30,22 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.DrawerValue
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalDrawerSheet
+import androidx.compose.material3.ModalNavigationDrawer
+import androidx.compose.material3.NavigationDrawerItem
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
@@ -48,6 +54,8 @@ import androidx.compose.material3.SuggestionChip
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -139,7 +147,6 @@ fun ImagePlaceholder(modifier: Modifier = Modifier, text: String) {
 fun RecipeCard(
     modifier: Modifier,
     title: String,
-    description: String,
     image: Image?,
     onClick: () -> Unit
 ) {
@@ -149,7 +156,7 @@ fun RecipeCard(
 
     ) {
         if (image == null) {
-            ImagePlaceholder(text = title.plus(" (image was null)"))
+            ImagePlaceholder(text = title)
         } else {
             ImagePlaceholder(text = title)
         }
@@ -159,15 +166,11 @@ fun RecipeCard(
             text = title,
             style = MaterialTheme.typography.displaySmall
         )
-        Text(
-            modifier = Modifier.padding(12.dp),
-            text = description,
-            style = MaterialTheme.typography.bodyMedium
-        )
     }
 
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeView(
     modifier: Modifier,
@@ -178,72 +181,115 @@ fun HomeView(
 
     val context = LocalContext.current
     var showApiKeyDialog by remember { mutableStateOf(false) }
-    // To display the saved API key (optional)
     var currentApiKey by remember { mutableStateOf(PrefsManager.getApiKey(context)) }
 
-    Scaffold(
-        floatingActionButton = {
-            FloatingActionButton(onClick = {
-                navController.navigate("addRecipe")
-            }) {
-                Icon(imageVector = Icons.Filled.Add, contentDescription = "Add Recipe")
-            }
-        }
-    ) { contentPadding ->
-        if (recipes.isEmpty()) {
-            Column(
-                modifier = modifier
-                    .padding(16.dp)
-                    .padding(contentPadding),
-                verticalArrangement = Arrangement.Center,
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                Text(
-                    "No recipes found",
-                    textAlign = TextAlign.Center,
+    val drawerState = rememberDrawerState(DrawerValue.Closed)
+    val scope = rememberCoroutineScope()
+
+    ModalNavigationDrawer(
+        drawerContent = {
+            ModalDrawerSheet {
+                NavigationDrawerItem(
+                    label = { Text("Recipes") },
+                    selected = true,
+                    onClick = {
+                    }
                 )
-                Button(onClick = { navController.navigate("addRecipe") }) {
-                    Text(text = "Add Recipe")
+                NavigationDrawerItem(
+                    label = { Text("Ingredients") },
+                    selected = false,
+                    onClick = {
+                        scope.launch { drawerState.close() }
+                    }
+                )
+            }
+        },
+        drawerState = drawerState
+    ) {
+        Scaffold(
+            floatingActionButton = {
+                FloatingActionButton(onClick = {
+                    navController.navigate("addRecipe")
+                }) {
+                    Icon(imageVector = Icons.Filled.Add, contentDescription = "Add Recipe")
                 }
+            },
+            topBar = {
+                TopAppBar(
+                    title = { Text("Recipies") },
+                    navigationIcon = {
+                        IconButton(onClick = { scope.launch { drawerState.open() } }) {
+                            Icon(
+                                imageVector = Icons.Filled.Menu,
+                                contentDescription = "Menu"
+                            )
+                        }
+                    })
             }
 
-        } else {
-            LazyColumn(
-                verticalArrangement = Arrangement.spacedBy(16.dp),
-                modifier = modifier.padding(contentPadding),
-            ) {
-                items(recipes) { recipe ->
-                    RecipeCard(
-                        modifier = Modifier.fillMaxSize(),
-                        title = recipe.title ?: "No title",
-                        description = recipe.description ?: "No description",
-                        image = null,
-                        onClick = { navController.navigate("recipe/${recipe.recipeId}") }
+
+        ) { contentPadding ->
+            if (recipes.isEmpty()) {
+                Column(
+                    modifier = modifier
+                        .padding(contentPadding),
+                    verticalArrangement = Arrangement.Center,
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Text(
+                        "No recipes found",
+                        textAlign = TextAlign.Center,
                     )
-                }
-                item {
                     Button(onClick = { navController.navigate("addRecipe") }) {
                         Text(text = "Add Recipe")
                     }
                 }
 
-                item {
-                    Button(onClick = { showApiKeyDialog = true }) {
-                        Text("Set API Key")
+            } else {
+                LazyColumn(
+                    verticalArrangement = Arrangement.spacedBy(16.dp),
+                    modifier = Modifier.padding(contentPadding),
+                ) {
+                    items(recipes) { recipe ->
+                        RecipeCard(
+                            modifier = Modifier.fillMaxSize(),
+                            title = recipe.title ?: "No title",
+                            image = null,
+                            onClick = { navController.navigate("recipe/${recipe.recipeId}") }
+                        )
+                    }
+
+                    item {
+                        HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+                    }
+
+                    item {
+                        Row(
+                            modifier = Modifier
+                                .padding(bottom = 8.dp)
+                                .fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Button(onClick = { navController.navigate("addRecipe") }) {
+                                Text(text = "Add Recipe")
+                            }
+
+                            Button(onClick = { showApiKeyDialog = true }) {
+                                Text("Set API Key")
+
+                            }
+                            ApiKeyEntryModal(
+                                showDialog = showApiKeyDialog,
+                                onDismissRequest = { showApiKeyDialog = false },
+                                onApiKeySaved = { savedKey ->
+                                    currentApiKey = savedKey // Update the displayed key
+                                    // You might want to trigger other actions here, like re-fetching data
+                                    showApiKeyDialog = false
+                                }
+                            )
+                        }
                     }
                 }
-                item {
-                    ApiKeyEntryModal(
-                        showDialog = showApiKeyDialog,
-                        onDismissRequest = { showApiKeyDialog = false },
-                        onApiKeySaved = { savedKey ->
-                            currentApiKey = savedKey // Update the displayed key
-                            // You might want to trigger other actions here, like re-fetching data
-                            showApiKeyDialog = false
-                        }
-                    )
-                }
-
             }
         }
     }
@@ -483,20 +529,6 @@ fun RecipeView(
                     text = recipe.recipe.title ?: "No title",
                     style = MaterialTheme.typography.displayMedium
                 )
-            }
-            item {
-                Card(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                ) {
-                    Text(
-                        text = recipe.recipe.description ?: "No description",
-                        style = MaterialTheme.typography.bodyMedium,
-                        modifier = Modifier.padding(8.dp),
-                    )
-
-                }
-
             }
             item {
                 Text(
